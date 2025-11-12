@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion';
-import { Package, ChevronRight } from 'lucide-react';
+import { Package, ChevronRight, Download } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import TabBar from '@/components/TabBar';
 import { useApp } from '@/contexts/AppContext';
 import { useNavigate } from 'react-router-dom';
@@ -23,9 +24,19 @@ const Orders = () => {
   };
 
   const getStatusLabel = (status: string) => {
-    return status.split('_').map(word => 
-      word.charAt(0).toUpperCase() + word.slice(1)
-    ).join(' ');
+    return status
+      .split('_')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
+  };
+
+  const handleDownloadInvoice = (order) => {
+    // 🔽 You can replace this URL with your backend API or invoice generator route
+    const invoiceUrl = `/invoices/INV${String(order.id).padStart(3, '0')}.pdf`;
+    const link = document.createElement('a');
+    link.href = invoiceUrl;
+    link.download = `Invoice_${order.id}.pdf`;
+    link.click();
   };
 
   if (orders.length === 0) {
@@ -57,13 +68,17 @@ const Orders = () => {
 
   return (
     <div className="min-h-screen bg-background pb-20">
+      {/* Header */}
       <header className="sticky top-0 z-40 bg-background/95 backdrop-blur-lg border-b border-border">
         <div className="max-w-md mx-auto p-4">
           <h1 className="text-2xl font-bold">My Orders</h1>
-          <p className="text-sm text-muted-foreground">{orders.length} order{orders.length > 1 ? 's' : ''}</p>
+          <p className="text-sm text-muted-foreground">
+            {orders.length} order{orders.length > 1 ? 's' : ''}
+          </p>
         </div>
       </header>
 
+      {/* Order List */}
       <main className="max-w-md mx-auto p-4 space-y-4">
         {orders.map((order, index) => (
           <motion.div
@@ -71,9 +86,9 @@ const Orders = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: index * 0.05 }}
-            onClick={() => navigate('/order-tracking', { state: { orderId: order.id } })}
-            className="bg-card rounded-2xl p-5 shadow-lg border border-border cursor-pointer hover:shadow-xl transition-shadow"
+            className="bg-card rounded-2xl p-5 shadow-lg border border-border hover:shadow-xl transition-shadow"
           >
+            {/* Order Header */}
             <div className="flex items-start justify-between mb-4">
               <div>
                 <p className="text-sm text-muted-foreground">Order ID</p>
@@ -84,7 +99,11 @@ const Orders = () => {
               </Badge>
             </div>
 
-            <div className="flex items-center gap-3 mb-4 pb-4 border-b border-border">
+            {/* Product Preview */}
+            <div
+              className="flex items-center gap-3 mb-4 pb-4 border-b border-border cursor-pointer"
+              onClick={() => navigate('/order-tracking', { state: { orderId: order.id } })}
+            >
               {order.items.slice(0, 3).map((item, idx) => (
                 <img
                   key={idx}
@@ -100,27 +119,47 @@ const Orders = () => {
               )}
             </div>
 
+            {/* Order Summary */}
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Total Amount</p>
                 <p className="text-xl font-bold">₹{order.total.toLocaleString()}</p>
               </div>
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <div
+                className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer"
+                onClick={() => navigate('/order-tracking', { state: { orderId: order.id } })}
+              >
                 <span>View Details</span>
                 <ChevronRight className="h-4 w-4" />
               </div>
             </div>
 
+            {/* Download Invoice Button */}
+            <div className="mt-4">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleDownloadInvoice(order)}
+                className="w-full flex items-center justify-center gap-2"
+              >
+                <Download className="h-4 w-4" />
+                Download Invoice
+              </Button>
+            </div>
+
+            {/* Footer */}
             <div className="mt-3 pt-3 border-t border-border flex justify-between text-xs text-muted-foreground">
               <span>
-                Ordered on {new Date(order.date).toLocaleDateString('en-IN', {
+                Ordered on{' '}
+                {new Date(order.date).toLocaleDateString('en-IN', {
                   day: 'numeric',
                   month: 'short',
                   year: 'numeric',
                 })}
               </span>
               <span>
-                Est. Delivery: {new Date(order.estimatedDelivery).toLocaleDateString('en-IN', {
+                Est. Delivery:{' '}
+                {new Date(order.estimatedDelivery).toLocaleDateString('en-IN', {
                   day: 'numeric',
                   month: 'short',
                 })}

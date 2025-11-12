@@ -4,14 +4,18 @@ import { Button } from '@/components/ui/button';
 import TabBar from '@/components/TabBar';
 import { useApp } from '@/contexts/AppContext';
 import { useNavigate } from 'react-router-dom';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useState } from 'react';
 
 const Cart = () => {
-  const { cart, updateCartQuantity, removeFromCart } = useApp();
+  const { cart, updateCartQuantity, removeFromCart , priceMultiplier } = useApp();
   const navigate = useNavigate();
 
-  const subtotal = cart.reduce((sum, item) => sum + (item.product.price * item.quantity), 0);
-  const discount = subtotal * 0.05; // 5% discount
-  const total = subtotal - discount;
+  // Base Calculations
+  const subtotal = cart.reduce((sum, item) => sum + (item.product.price* priceMultiplier * item.quantity), 0);
+ 
+  const baseTotal = subtotal ;
+  const finalTotal = baseTotal ;
 
   if (cart.length === 0) {
     return (
@@ -51,7 +55,7 @@ const Cart = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background pb-20">
+    <div className="min-h-screen bg-background pb-28">
       <header className="sticky top-0 z-40 bg-background/95 backdrop-blur-lg border-b border-border">
         <div className="max-w-md mx-auto flex items-center justify-between p-4">
           <motion.button
@@ -66,7 +70,7 @@ const Cart = () => {
         </div>
       </header>
 
-      <main className="max-w-md mx-auto p-4 space-y-4">
+      <main className="max-w-md mx-auto p-4 space-y-4 pb-20">
         {/* Cart Items */}
         {cart.map((item, index) => (
           <motion.div
@@ -99,7 +103,7 @@ const Cart = () => {
 
                 <div className="flex items-center justify-between">
                   <div className="text-lg font-bold text-primary">
-                    ₹{(item.product.price * item.quantity).toLocaleString()}
+                    ₹{(item.product.price* priceMultiplier * item.quantity).toLocaleString()}
                   </div>
                   
                   <div className="flex items-center gap-2 bg-muted rounded-full p-1">
@@ -127,7 +131,8 @@ const Cart = () => {
           </motion.div>
         ))}
 
-        {/* Price Summary */}
+
+        {/* price* priceMultiplier Summary */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -139,13 +144,11 @@ const Cart = () => {
             <span>Subtotal</span>
             <span>₹{subtotal.toLocaleString()}</span>
           </div>
-          <div className="flex justify-between text-success">
-            <span>Discount (5%)</span>
-            <span>-₹{discount.toLocaleString()}</span>
-          </div>
+          
+       
           <div className="border-t border-border pt-3 flex justify-between text-xl font-bold">
             <span>Total</span>
-            <span className="text-primary">₹{total.toLocaleString()}</span>
+            <span className="text-primary">₹{finalTotal.toLocaleString()}</span>
           </div>
         </motion.div>
 
@@ -154,7 +157,7 @@ const Cart = () => {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
-          className="flex gap-3 pt-2"
+          className="flex gap-3 pt-2 pb-24"
         >
           <Button
             onClick={() => navigate('/home')}
@@ -165,7 +168,7 @@ const Cart = () => {
             Continue Shopping
           </Button>
           <Button
-            onClick={() => navigate('/checkout')}
+            onClick={() => navigate('/checkout', { state: { finalTotal } })}
             size="lg"
             className="flex-1"
           >

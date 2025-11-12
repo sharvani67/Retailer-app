@@ -7,6 +7,7 @@ import TabBar from '@/components/TabBar';
 import { products, categories, banners } from '@/data/products';
 import { useApp } from '@/contexts/AppContext';
 import { useNavigate } from 'react-router-dom';
+import CreditPeriodPopup from '@/components/CreditPeriodPopup';
 
 const Home = () => {
   const [selectedCategory, setSelectedCategory] = useState('all');
@@ -22,7 +23,9 @@ const Home = () => {
   });
 
   return (
-    <div className="min-h-screen bg-background pb-20">
+    <>
+     <CreditPeriodPopup />
+      <div className="min-h-screen bg-background pb-20">
       {/* Header */}
       <header className="sticky top-0 z-40 bg-background/95 backdrop-blur-lg border-b border-border">
         <div className="max-w-md mx-auto p-4 space-y-4">
@@ -146,6 +149,8 @@ const Home = () => {
 
       <TabBar />
     </div>
+    </>
+   
   );
 };
 

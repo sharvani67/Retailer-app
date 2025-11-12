@@ -6,40 +6,46 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useApp } from '@/contexts/AppContext';
+import TabBar from '@/components/TabBar';
 
 const Checkout = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { cart, placeOrder } = useApp();
-  
-  // Check if it's a direct buy or cart checkout
+  const { cart, placeOrder ,priceMultiplier} = useApp();
   const directBuyItems = location.state?.directBuy;
   const items = directBuyItems || cart;
 
+  // Address
   const [address, setAddress] = useState({
-    name: '',
-    businessName: '',
-    phone: '',
-    addressLine: '',
-    city: '',
-    pincode: '',
+    name: 'Rajesh',
+    businessName: 'Rajesh Retail Stores',
+    phone: '9875434577',
+    addressLine: 'Ashoknagar',
+    city: 'Hyderabad',
+    pincode: '505001',
   });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setAddress({ ...address, [e.target.id]: e.target.value });
   };
 
-  const total = items.reduce((sum, item) => sum + (item.product.price * item.quantity), 0);
-  const discount = total * 0.05;
-  const finalTotal = total - discount;
+  // 🧾 Base calculations
+  const total = items.reduce((sum, item) => sum + item.product.price* priceMultiplier * item.quantity, 0);
+  
+  const baseTotal = total ;
+
+  const finalTotal = baseTotal;
 
   const handlePlaceOrder = () => {
     const orderId = placeOrder(items, address);
-    navigate('/order-confirmation', { state: { orderId, total: finalTotal } });
+    navigate('/order-confirmation', {
+      state: { orderId, total: finalTotal },
+    });
   };
 
   return (
     <div className="min-h-screen bg-background pb-6">
+      {/* Header */}
       <header className="sticky top-0 z-40 bg-background/95 backdrop-blur-lg border-b border-border">
         <div className="max-w-md mx-auto flex items-center justify-between p-4">
           <motion.button
@@ -54,7 +60,7 @@ const Checkout = () => {
         </div>
       </header>
 
-      <main className="max-w-md mx-auto p-4 space-y-6">
+      <main className="max-w-md mx-auto p-4 space-y-6 pb-28">
         {/* Delivery Address */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -67,74 +73,22 @@ const Checkout = () => {
           </div>
 
           <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">Full Name</Label>
-              <Input
-                id="name"
-                placeholder="Your name"
-                value={address.name}
-                onChange={handleChange}
-                required
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="businessName">Business Name</Label>
-              <Input
-                id="businessName"
-                placeholder="Your business"
-                value={address.businessName}
-                onChange={handleChange}
-                required
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="phone">Phone Number</Label>
-              <Input
-                id="phone"
-                type="tel"
-                placeholder="+91 98765 43210"
-                value={address.phone}
-                onChange={handleChange}
-                required
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="addressLine">Complete Address</Label>
-              <Input
-                id="addressLine"
-                placeholder="Street, Building, Landmark"
-                value={address.addressLine}
-                onChange={handleChange}
-                required
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label htmlFor="city">City</Label>
+            {['name', 'businessName', 'phone', 'addressLine', 'city', 'pincode'].map((field) => (
+              <div key={field} className="space-y-2">
+                <Label htmlFor={field}>
+                  {field === 'addressLine'
+                    ? 'Complete Address'
+                    : field.charAt(0).toUpperCase() + field.slice(1)}
+                </Label>
                 <Input
-                  id="city"
-                  placeholder="City"
-                  value={address.city}
+                  id={field}
+                  value={address[field as keyof typeof address]}
                   onChange={handleChange}
+                  placeholder={`Enter ${field}`}
                   required
                 />
               </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="pincode">Pincode</Label>
-                <Input
-                  id="pincode"
-                  placeholder="400001"
-                  value={address.pincode}
-                  onChange={handleChange}
-                  required
-                />
-              </div>
-            </div>
+            ))}
           </div>
         </motion.div>
 
@@ -154,7 +108,7 @@ const Checkout = () => {
                   {item.product.name} × {item.quantity}
                 </span>
                 <span className="font-semibold">
-                  ₹{(item.product.price * item.quantity).toLocaleString()}
+                  ₹{(item.product.price* priceMultiplier * item.quantity).toLocaleString()}
                 </span>
               </div>
             ))}
@@ -165,10 +119,8 @@ const Checkout = () => {
               <span>Subtotal</span>
               <span>₹{total.toLocaleString()}</span>
             </div>
-            <div className="flex justify-between text-success">
-              <span>Discount (5%)</span>
-              <span>-₹{discount.toLocaleString()}</span>
-            </div>
+          
+            
             <div className="flex justify-between text-xl font-bold pt-2">
               <span>Total</span>
               <span className="text-primary">₹{finalTotal.toLocaleString()}</span>
@@ -186,12 +138,20 @@ const Checkout = () => {
             onClick={handlePlaceOrder}
             size="lg"
             className="w-full"
-            disabled={!address.name || !address.phone || !address.addressLine || !address.city || !address.pincode}
+            disabled={
+              !address.name ||
+              !address.phone ||
+              !address.addressLine ||
+              !address.city ||
+              !address.pincode
+            }
           >
             Place Order - ₹{finalTotal.toLocaleString()}
           </Button>
         </motion.div>
       </main>
+
+      <TabBar />
     </div>
   );
 };

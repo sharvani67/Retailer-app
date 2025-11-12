@@ -1,16 +1,19 @@
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Package, CheckCircle, Truck, Home as HomeIcon, Phone } from 'lucide-react';
+import { ArrowLeft, Package, CheckCircle, Truck, Home as HomeIcon, Phone, CalendarClock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useApp } from '@/contexts/AppContext';
+import TabBar from '@/components/TabBar';
 
 const OrderTracking = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { orders } = useApp();
-  
+  const { orders , priceMultiplier } = useApp();
+
+  // ✅ Get values from navigation
   const orderId = location.state?.orderId;
-  const order = orders.find(o => o.id === orderId);
+  const total = location.state?.total;
+  const order = orders.find((o) => o.id === orderId);
 
   if (!order) {
     return <div>Order not found</div>;
@@ -24,10 +27,11 @@ const OrderTracking = () => {
     { key: 'delivered', label: 'Delivered', icon: HomeIcon, completed: order.status === 'delivered' },
   ];
 
-  const currentStatusIndex = statuses.findIndex(s => s.key === order.status);
+  const currentStatusIndex = statuses.findIndex((s) => s.key === order.status);
 
   return (
     <div className="min-h-screen bg-background pb-6">
+      {/* Header */}
       <header className="sticky top-0 z-40 bg-background/95 backdrop-blur-lg border-b border-border">
         <div className="max-w-md mx-auto flex items-center justify-between p-4">
           <motion.button
@@ -42,8 +46,8 @@ const OrderTracking = () => {
         </div>
       </header>
 
-      <main className="max-w-md mx-auto p-4 space-y-6">
-        {/* Order Info */}
+      <main className="max-w-md mx-auto p-4 space-y-6 pb-28">
+        {/* 🧾 Order Info */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -56,10 +60,10 @@ const OrderTracking = () => {
             </div>
             <div className="text-right">
               <p className="text-sm text-muted-foreground">Total Amount</p>
-              <p className="text-xl font-bold">₹{order.total.toLocaleString()}</p>
+              <p className="text-xl font-bold">₹{total?.toLocaleString() || order.total.toLocaleString()}</p>
             </div>
           </div>
-
+          {/* Delivery Info */}
           <div className="border-t border-border pt-4">
             <p className="text-sm text-muted-foreground mb-1">Estimated Delivery</p>
             <p className="font-semibold text-lg">
@@ -72,7 +76,7 @@ const OrderTracking = () => {
           </div>
         </motion.div>
 
-        {/* Tracking Timeline */}
+        {/* 🚚 Tracking Timeline */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -138,7 +142,7 @@ const OrderTracking = () => {
           </div>
         </motion.div>
 
-        {/* Order Items */}
+        {/* 🛍 Order Items */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -148,7 +152,10 @@ const OrderTracking = () => {
           <h2 className="text-lg font-semibold mb-4">Order Items</h2>
           <div className="space-y-3">
             {order.items.map((item) => (
-              <div key={item.product.id} className="flex items-center gap-3 pb-3 border-b border-border last:border-0 last:pb-0">
+              <div
+                key={item.product.id}
+                className="flex items-center gap-3 pb-3 border-b border-border last:border-0 last:pb-0"
+              >
                 <img
                   src={item.product.image}
                   alt={item.product.name}
@@ -158,13 +165,15 @@ const OrderTracking = () => {
                   <p className="font-semibold line-clamp-1">{item.product.name}</p>
                   <p className="text-sm text-muted-foreground">Qty: {item.quantity}</p>
                 </div>
-                <p className="font-bold">₹{(item.product.price * item.quantity).toLocaleString()}</p>
+                <p className="font-bold">
+                  ₹{(item.product.price* priceMultiplier * item.quantity).toLocaleString()}
+                </p>
               </div>
             ))}
           </div>
         </motion.div>
 
-        {/* Action Buttons */}
+        {/* 🧭 Action Buttons */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -172,25 +181,25 @@ const OrderTracking = () => {
           className="flex gap-3"
         >
           <Button
-            onClick={() => navigate('/checkout', { 
-              state: { directBuy: order.items } 
-            })}
+            onClick={() =>
+              navigate('/checkout', {
+                state: { directBuy: order.items },
+              })
+            }
             variant="outline"
             size="lg"
             className="flex-1"
           >
             Reorder
           </Button>
-          <Button
-            variant="secondary"
-            size="lg"
-            className="flex-1"
-          >
+          <Button variant="secondary" size="lg" className="flex-1">
             <Phone className="h-5 w-5 mr-2" />
             Contact Supplier
           </Button>
         </motion.div>
       </main>
+
+      <TabBar />
     </div>
   );
 };

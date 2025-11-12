@@ -10,9 +10,10 @@ interface ProductCardProps {
 }
 
 const ProductCard = ({ product }: ProductCardProps) => {
-  const { addToCart, addToWishlist, wishlist } = useApp();
+  const { addToCart, addToWishlist, wishlist, priceMultiplier } = useApp();
   const navigate = useNavigate();
   const isWishlisted = wishlist.some(item => item.product.id === product.id);
+  
 
   return (
     <motion.div
@@ -56,7 +57,9 @@ const ProductCard = ({ product }: ProductCardProps) => {
         </div>
         
         <div className="flex items-baseline gap-2">
-          <span className="text-2xl font-bold text-primary">₹{product.price.toLocaleString()}</span>
+          <span className="text-2xl font-bold text-primary">
+  ₹{(product.price * priceMultiplier).toFixed(2)}
+</span>
           <span className="text-sm text-muted-foreground">/ {product.unit}</span>
         </div>
 
@@ -70,7 +73,7 @@ const ProductCard = ({ product }: ProductCardProps) => {
             variant="default"
           >
             <ShoppingCart className="h-4 w-4 mr-1" />
-            Add
+            
           </Button>
           <Button
             onClick={(e) => {

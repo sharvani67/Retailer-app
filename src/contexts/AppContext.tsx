@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { Product, CartItem, WishlistItem, Order } from '@/types';
 import { toast } from 'sonner';
 
@@ -8,6 +8,8 @@ interface AppContextType {
   orders: Order[];
   isAuthenticated: boolean;
   user: { name: string; businessName: string; email: string } | null;
+  creditPeriod: string | null;
+  priceMultiplier: number;
   addToCart: (product: Product, quantity: number) => void;
   removeFromCart: (productId: string) => void;
   updateCartQuantity: (productId: string, quantity: number) => void;
@@ -19,6 +21,7 @@ interface AppContextType {
   login: (email: string, password: string) => boolean;
   signup: (data: any) => boolean;
   logout: () => void;
+  updateCreditPeriod: (period: string) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -29,6 +32,45 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState<{ name: string; businessName: string; email: string } | null>(null);
+  const [creditPeriod, setCreditPeriod] = useState<string | null>(null);
+  const [priceMultiplier, setPriceMultiplier] = useState<number>(1);
+
+  // ✅ Load from localStorage on refresh
+  useEffect(() => {
+    const savedPeriod = localStorage.getItem('creditPeriod');
+    const savedMultiplier = localStorage.getItem('priceMultiplier');
+    if (savedPeriod && savedMultiplier) {
+      setCreditPeriod(savedPeriod);
+      setPriceMultiplier(parseFloat(savedMultiplier));
+    }
+  }, []);
+
+  // ✅ Update credit period and corresponding price multiplier
+  const updateCreditPeriod = (period: string) => {
+    let multiplier = 1;
+    switch (period) {
+      case '10':
+        multiplier = 1.05;
+        break;
+      case '15':
+        multiplier = 1.08;
+        break;
+      case '30':
+        multiplier = 1.12;
+        break;
+      case '45':
+        multiplier = 1.15;
+        break;
+      default:
+        multiplier = 1;
+    }
+
+    setCreditPeriod(period);
+    setPriceMultiplier(multiplier);
+    localStorage.setItem('creditPeriod', period);
+    localStorage.setItem('priceMultiplier', multiplier.toString());
+    toast.success(`Credit period set to ${period} days (+${((multiplier - 1) * 100).toFixed(0)}%)`);
+  };
 
   const addToCart = (product: Product, quantity: number) => {
     const existingItem = cart.find(item => item.product.id === product.id);
@@ -81,8 +123,11 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   const placeOrder = (items: CartItem[], address: any): string => {
     const orderId = `ORD${Date.now()}`;
-    const total = items.reduce((sum, item) => sum + (item.product.price * item.quantity), 0);
-    
+    const total = items.reduce(
+      (sum, item) => sum + item.product.price * priceMultiplier * item.quantity,
+      0
+    );
+
     const newOrder: Order = {
       id: orderId,
       items,
@@ -99,7 +144,6 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const login = (email: string, password: string): boolean => {
-    // Simulate login
     setIsAuthenticated(true);
     setUser({
       name: 'Rajesh Kumar',
@@ -126,6 +170,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     setUser(null);
     setCart([]);
     setWishlist([]);
+    setCreditPeriod(null);
+    setPriceMultiplier(1);
+    localStorage.removeItem('creditPeriod');
+    localStorage.removeItem('priceMultiplier');
     toast.info('Logged out successfully');
   };
 
@@ -137,6 +185,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         orders,
         isAuthenticated,
         user,
+        creditPeriod,
+        priceMultiplier,
         addToCart,
         removeFromCart,
         updateCartQuantity,
@@ -148,6 +198,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         login,
         signup,
         logout,
+        updateCreditPeriod,
       }}
     >
       {children}
@@ -157,8 +208,6 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
 export const useApp = () => {
   const context = useContext(AppContext);
-  if (!context) {
-    throw new Error('useApp must be used within AppProvider');
-  }
+  if (!context) throw new Error('useApp must be used within AppProvider');
   return context;
 };
