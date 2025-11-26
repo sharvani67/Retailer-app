@@ -10,13 +10,42 @@ import { Package, Mail, Lock } from 'lucide-react';
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
   const { login } = useApp();
   const navigate = useNavigate();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (login(email, password)) {
-      navigate('/home');
+    setError('');
+    setIsLoading(true);
+
+    try {
+      const response = await fetch('http://localhost:5000/accounts/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        // Login successful
+        if (login(data.user)) {
+          navigate('/home');
+        } else {
+          setError('Login failed in app context');
+        }
+      } else {
+        setError(data.error || 'Login failed');
+      }
+    } catch (err) {
+      console.error('Login error:', err);
+      setError('Network error. Please try again.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -37,6 +66,12 @@ const Login = () => {
             <p className="text-muted-foreground">Sign in to your account</p>
           </div>
 
+          {error && (
+            <div className="bg-destructive/15 text-destructive px-4 py-3 rounded-md text-sm">
+              {error}
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
@@ -50,6 +85,7 @@ const Login = () => {
                   onChange={(e) => setEmail(e.target.value)}
                   className="pl-10"
                   required
+                  disabled={isLoading}
                 />
               </div>
             </div>
@@ -66,27 +102,38 @@ const Login = () => {
                   onChange={(e) => setPassword(e.target.value)}
                   className="pl-10"
                   required
+                  disabled={isLoading}
                 />
               </div>
             </div>
 
             <div className="flex justify-end">
-              <Link to="/forgot-password" className="text-sm text-primary hover:underline">
+              <Link 
+                to="/forgot-password" 
+                state={{ email }} 
+                className="text-sm text-primary hover:underline"
+              >
                 Forgot Password?
               </Link>
             </div>
 
-            <Button type="submit" size="lg" className="w-full">
-              Sign In
+            <Button 
+              type="submit" 
+              size="lg" 
+              className="w-full"
+              disabled={isLoading}
+            >
+              {isLoading ? "Signing In..." : "Sign In"}
             </Button>
           </form>
 
-          <div className="text-center text-sm">
+          {/* <div className="text-center text-sm">
             <span className="text-muted-foreground">Don't have an account? </span>
             <Link to="/signup" className="text-primary font-semibold hover:underline">
               Sign Up
             </Link>
-          </div>
+          </div> */}
+          
         </div>
       </motion.div>
     </div>
