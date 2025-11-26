@@ -12,7 +12,7 @@ const ProductDetails = () => {
   const navigate = useNavigate();
   const product = products.find(p => p.id === id);
   const [quantity, setQuantity] = useState(1);
-  const { addToCart, addToWishlist, wishlist , priceMultiplier} = useApp();
+  const { addToCart, addToWishlist, wishlist } = useApp();
 
   if (!product) {
     return <div>Product not found</div>;
@@ -85,7 +85,7 @@ const ProductDetails = () => {
               </div>
               <div className="text-right">
                 <div className="text-3xl font-bold text-primary">
-                  ₹{(product.price * priceMultiplier ).toLocaleString()}
+                  ₹{(product.price  ).toLocaleString()}
                 </div>
                 <div className="text-sm text-muted-foreground">per {product.unit}</div>
               </div>
@@ -128,7 +128,7 @@ const ProductDetails = () => {
                 </Button>
               </div>
               <div className="text-sm text-muted-foreground">
-                Total: <span className="text-lg font-bold text-foreground">₹{(product.price*priceMultiplier * quantity).toLocaleString()}</span>
+                Total: <span className="text-lg font-bold text-foreground">₹{(product.price * quantity).toLocaleString()}</span>
               </div>
             </div>
           </motion.div>

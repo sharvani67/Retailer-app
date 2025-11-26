@@ -8,7 +8,7 @@ import TabBar from '@/components/TabBar';
 const OrderTracking = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { orders , priceMultiplier } = useApp();
+  const { orders  } = useApp();
 
   // ✅ Get values from navigation
   const orderId = location.state?.orderId;
@@ -166,7 +166,7 @@ const OrderTracking = () => {
                   <p className="text-sm text-muted-foreground">Qty: {item.quantity}</p>
                 </div>
                 <p className="font-bold">
-                  ₹{(item.product.price* priceMultiplier * item.quantity).toLocaleString()}
+                  ₹{(item.product.price * item.quantity).toLocaleString()}
                 </p>
               </div>
             ))}

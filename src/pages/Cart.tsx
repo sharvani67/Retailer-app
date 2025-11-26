@@ -4,18 +4,31 @@ import { Button } from '@/components/ui/button';
 import TabBar from '@/components/TabBar';
 import { useApp } from '@/contexts/AppContext';
 import { useNavigate } from 'react-router-dom';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useState } from 'react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 const Cart = () => {
-  const { cart, updateCartQuantity, removeFromCart , priceMultiplier } = useApp();
+  const { cart, updateCartQuantity, removeFromCart, updateItemCreditPeriod } = useApp();
   const navigate = useNavigate();
 
-  // Base Calculations
-  const subtotal = cart.reduce((sum, item) => sum + (item.product.price* priceMultiplier * item.quantity), 0);
- 
-  const baseTotal = subtotal ;
-  const finalTotal = baseTotal ;
+  // ============================
+  // TOTAL USING MULTIPLIERS
+  // ============================
+  const subtotal = cart.reduce(
+    (sum, item) => sum + item.product.price * item.quantity,
+    0
+  );
+
+  const finalTotal = cart.reduce(
+    (sum, item) =>
+      sum + item.product.price * item.quantity * item.priceMultiplier,
+    0
+  );
 
   if (cart.length === 0) {
     return (
@@ -43,12 +56,17 @@ const Cart = () => {
           >
             <ShoppingBag className="h-20 w-20 text-muted-foreground" />
           </motion.div>
+
           <h2 className="text-2xl font-bold mb-2">Your cart is empty</h2>
-          <p className="text-muted-foreground mb-8">Add some products to get started!</p>
+          <p className="text-muted-foreground mb-8">
+            Add some products to get started!
+          </p>
+
           <Button onClick={() => navigate('/home')} size="lg">
             Start Shopping
           </Button>
         </div>
+
         <TabBar />
       </div>
     );
@@ -71,7 +89,9 @@ const Cart = () => {
       </header>
 
       <main className="max-w-md mx-auto p-4 space-y-4 pb-20">
-        {/* Cart Items */}
+        {/* ==========================================================
+           CART ITEMS WITH CREDIT PERIOD PER PRODUCT
+        ========================================================== */}
         {cart.map((item, index) => (
           <motion.div
             key={item.product.id}
@@ -86,12 +106,18 @@ const Cart = () => {
                 alt={item.product.name}
                 className="w-24 h-24 object-cover rounded-xl bg-muted"
               />
+
               <div className="flex-1 space-y-2">
                 <div className="flex justify-between">
                   <div className="flex-1">
-                    <h3 className="font-semibold line-clamp-1">{item.product.name}</h3>
-                    <p className="text-xs text-muted-foreground">{item.product.supplier}</p>
+                    <h3 className="font-semibold line-clamp-1">
+                      {item.product.name}
+                    </h3>
+                    <p className="text-xs text-muted-foreground">
+                      {item.product.supplier}
+                    </p>
                   </div>
+
                   <motion.button
                     whileTap={{ scale: 0.9 }}
                     onClick={() => removeFromCart(item.product.id)}
@@ -101,38 +127,85 @@ const Cart = () => {
                   </motion.button>
                 </div>
 
+                {/* PRODUCT PRICE WITH MULTIPLIER */}
+                <div className="text-sm text-muted-foreground">
+                  Credit applied:
+                  <span className="font-semibold text-primary ml-1">
+                    +{((item.priceMultiplier - 1) * 100).toFixed(0)}%
+                  </span>
+                </div>
+
+                <div className="text-lg font-bold text-primary">
+                  ₹
+                  {(
+                    item.product.price *
+                    item.quantity *
+                    item.priceMultiplier
+                  ).toLocaleString()}
+                </div>
+
+                {/* =======================
+                    Quantity Buttons
+                ======================== */}
                 <div className="flex items-center justify-between">
-                  <div className="text-lg font-bold text-primary">
-                    ₹{(item.product.price* priceMultiplier * item.quantity).toLocaleString()}
-                  </div>
-                  
                   <div className="flex items-center gap-2 bg-muted rounded-full p-1">
                     <Button
                       size="icon"
                       variant="ghost"
-                      onClick={() => updateCartQuantity(item.product.id, item.quantity - 1)}
+                      onClick={() =>
+                        updateCartQuantity(item.product.id, item.quantity - 1)
+                      }
                       className="rounded-full h-7 w-7"
                     >
                       <Minus className="h-3 w-3" />
                     </Button>
-                    <span className="text-sm font-semibold w-8 text-center">{item.quantity}</span>
+
+                    <span className="text-sm font-semibold w-8 text-center">
+                      {item.quantity}
+                    </span>
+
                     <Button
                       size="icon"
                       variant="ghost"
-                      onClick={() => updateCartQuantity(item.product.id, item.quantity + 1)}
+                      onClick={() =>
+                        updateCartQuantity(item.product.id, item.quantity + 1)
+                      }
                       className="rounded-full h-7 w-7"
                     >
                       <Plus className="h-3 w-3" />
                     </Button>
                   </div>
                 </div>
+
+                {/* =======================
+                    CREDIT PERIOD SELECT
+                ======================== */}
+                <div className="mt-3">
+                  <Select
+                    value={item.creditPeriod}
+                    onValueChange={(value) =>
+                      updateItemCreditPeriod(item.product.id, value)
+                    }
+                  >
+                    <SelectTrigger className="w-full bg-muted">
+                      <SelectValue placeholder="Credit Period" />
+                    </SelectTrigger>
+
+                    <SelectContent>
+                      <SelectItem value="0">0 days (+0%)</SelectItem>
+                      <SelectItem value="3">3 days (+4%)</SelectItem>
+                      <SelectItem value="8">8 days (+8%)</SelectItem>
+                      <SelectItem value="15">15 days (+12%)</SelectItem>
+                      <SelectItem value="30">30 days (+15%)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </div>
           </motion.div>
         ))}
 
-
-        {/* price* priceMultiplier Summary */}
+        {/* ORDER SUMMARY */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -140,19 +213,26 @@ const Cart = () => {
           className="bg-card rounded-2xl p-6 shadow-lg border border-border space-y-3"
         >
           <h3 className="font-semibold text-lg mb-4">Order Summary</h3>
+
           <div className="flex justify-between text-muted-foreground">
-            <span>Subtotal</span>
+            <span>Subtotal (without credit)</span>
             <span>₹{subtotal.toLocaleString()}</span>
           </div>
-          
-       
+
+          <div className="flex justify-between text-muted-foreground">
+            <span>Credit Charges</span>
+            <span>₹{(finalTotal - subtotal).toLocaleString()}</span>
+          </div>
+
           <div className="border-t border-border pt-3 flex justify-between text-xl font-bold">
             <span>Total</span>
-            <span className="text-primary">₹{finalTotal.toLocaleString()}</span>
+            <span className="text-primary">
+              ₹{finalTotal.toLocaleString()}
+            </span>
           </div>
         </motion.div>
 
-        {/* Action Buttons */}
+        {/* ACTION BUTTONS */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -167,6 +247,7 @@ const Cart = () => {
           >
             Continue Shopping
           </Button>
+
           <Button
             onClick={() => navigate('/checkout', { state: { finalTotal } })}
             size="lg"

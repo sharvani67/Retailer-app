@@ -13,6 +13,11 @@ export interface Product {
 export interface CartItem {
   product: Product;
   quantity: number;
+ 
+
+  // ✅ Add these two new fields
+  priceMultiplier: number;
+  creditPeriod: string;
 }
 
 export interface WishlistItem {

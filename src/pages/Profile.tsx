@@ -7,15 +7,12 @@ import { useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 
 const Profile = () => {
-  const { user, logout, orders, wishlist, creditPeriod, updateCreditPeriod } = useApp();
+  const { user, logout, orders, wishlist } = useApp();
   const navigate = useNavigate();
 
-  const [selected, setSelected] = useState(creditPeriod || '');
 
-  const handleCreditChange = () => {
-    if (!selected) return;
-    updateCreditPeriod(selected);
-  };
+
+ 
 
   const handleLogout = () => {
     logout();
@@ -115,53 +112,7 @@ const Profile = () => {
           })}
         </motion.div>
 
-        {/* Credit Period Dropdown */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="bg-card rounded-2xl p-5 shadow-md border border-border mt-4"
-        >
-          <div className="flex items-center gap-4 mb-3">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-500 to-yellow-500 flex items-center justify-center text-white shadow-lg">
-              <Clock className="h-6 w-6" />
-            </div>
-            <div>
-              <p className="font-semibold text-lg">Credit Period</p>
-              <p className="text-sm text-muted-foreground">
-                Select your preferred credit period
-              </p>
-            </div>
-          </div>
-
-          <div className="flex gap-3">
-            <select
-              className="flex-1 border border-gray-300 dark:border-gray-700 rounded-md p-2 bg-background text-sm"
-              value={selected}
-              onChange={(e) => setSelected(e.target.value)}
-            >
-              <option value="">Choose period</option>
-              <option value="10">10 days (+5%)</option>
-              <option value="15">15 days (+8%)</option>
-              <option value="30">30 days (+12%)</option>
-              <option value="45">45 days (+15%)</option>
-            </select>
-
-            <Button
-              onClick={handleCreditChange}
-              size="sm"
-              className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-md"
-            >
-              Save
-            </Button>
-          </div>
-
-          {creditPeriod && (
-            <p className="text-xs text-muted-foreground mt-2">
-              Current Credit Period: <span className="font-semibold">{creditPeriod} days</span>
-            </p>
-          )}
-        </motion.div>
+      
 
         {/* Logout Button */}
         <motion.div

@@ -8,20 +8,23 @@ interface AppContextType {
   orders: Order[];
   isAuthenticated: boolean;
   user: { name: string; businessName: string; email: string } | null;
-  creditPeriod: string | null;
-  priceMultiplier: number;
+
   addToCart: (product: Product, quantity: number) => void;
   removeFromCart: (productId: string) => void;
   updateCartQuantity: (productId: string, quantity: number) => void;
+
+  updateItemCreditPeriod: (productId: string, period: string) => void;
+
   addToWishlist: (product: Product) => void;
   removeFromWishlist: (productId: string) => void;
   moveToCart: (productId: string) => void;
+
   placeOrder: (items: CartItem[], address: any) => string;
   clearCart: () => void;
+
   login: (email: string, password: string) => boolean;
   signup: (data: any) => boolean;
   logout: () => void;
-  updateCreditPeriod: (period: string) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -32,81 +35,102 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState<{ name: string; businessName: string; email: string } | null>(null);
-  const [creditPeriod, setCreditPeriod] = useState<string | null>(null);
-  const [priceMultiplier, setPriceMultiplier] = useState<number>(1);
 
-  // ✅ Load from localStorage on refresh
+  // --------------------------------------
+  // Load saved cart from LocalStorage
+  // --------------------------------------
   useEffect(() => {
-    const savedPeriod = localStorage.getItem('creditPeriod');
-    const savedMultiplier = localStorage.getItem('priceMultiplier');
-    if (savedPeriod && savedMultiplier) {
-      setCreditPeriod(savedPeriod);
-      setPriceMultiplier(parseFloat(savedMultiplier));
-    }
+    const savedCart = localStorage.getItem("appCart");
+    if (savedCart) setCart(JSON.parse(savedCart));
   }, []);
 
-  // ✅ Update credit period and corresponding price multiplier
-  const updateCreditPeriod = (period: string) => {
-    let multiplier = 1;
-    switch (period) {
-      case '10':
-        multiplier = 1.05;
-        break;
-      case '15':
-        multiplier = 1.08;
-        break;
-      case '30':
-        multiplier = 1.12;
-        break;
-      case '45':
-        multiplier = 1.15;
-        break;
-      default:
-        multiplier = 1;
-    }
-
-    setCreditPeriod(period);
-    setPriceMultiplier(multiplier);
-    localStorage.setItem('creditPeriod', period);
-    localStorage.setItem('priceMultiplier', multiplier.toString());
-    toast.success(`Credit period set to ${period} days (+${((multiplier - 1) * 100).toFixed(0)}%)`);
+  const saveCart = (newCart: CartItem[]) => {
+    setCart(newCart);
+    localStorage.setItem("appCart", JSON.stringify(newCart));
   };
 
+  // --------------------------------------
+  // Add to Cart
+  // --------------------------------------
   const addToCart = (product: Product, quantity: number) => {
-    const existingItem = cart.find(item => item.product.id === product.id);
-    if (existingItem) {
-      updateCartQuantity(product.id, existingItem.quantity + quantity);
+    const existing = cart.find(item => item.product.id === product.id);
+
+    if (existing) {
+      updateCartQuantity(product.id, existing.quantity + quantity);
     } else {
-      setCart([...cart, { product, quantity }]);
+      const newItem: CartItem = {
+        product,
+        quantity,
+        creditPeriod: "0",        // default 0 days
+        priceMultiplier: 1.00     // default 0% increase
+      };
+      saveCart([...cart, newItem]);
       toast.success(`${product.name} added to cart!`);
     }
   };
 
+  // --------------------------------------
+  // Remove from Cart
+  // --------------------------------------
   const removeFromCart = (productId: string) => {
-    setCart(cart.filter(item => item.product.id !== productId));
-    toast.info('Item removed from cart');
+    const newCart = cart.filter(item => item.product.id !== productId);
+    saveCart(newCart);
+    toast.info("Item removed from cart");
   };
 
+  // --------------------------------------
+  // Update Quantity
+  // --------------------------------------
   const updateCartQuantity = (productId: string, quantity: number) => {
-    if (quantity <= 0) {
-      removeFromCart(productId);
-      return;
-    }
-    setCart(cart.map(item => 
+    if (quantity <= 0) return removeFromCart(productId);
+
+    const newCart = cart.map(item =>
       item.product.id === productId ? { ...item, quantity } : item
-    ));
+    );
+
+    saveCart(newCart);
   };
 
+  // --------------------------------------
+  // Update Credit Period per product
+  // --------------------------------------
+  const updateItemCreditPeriod = (productId: string, period: string) => {
+    let multiplier = 1;
+
+    switch (period) {
+      case "3": multiplier = 1.04; break;
+      case "8": multiplier = 1.08; break;
+      case "15": multiplier = 1.12; break;
+      case "30": multiplier = 1.15; break;
+      default: multiplier = 1.00;
+    }
+
+    const newCart = cart.map(item =>
+      item.product.id === productId
+        ? { ...item, creditPeriod: period, priceMultiplier: multiplier }
+        : item
+    );
+
+    saveCart(newCart);
+
+    toast.success(
+      `Credit set to ${period} days (+${((multiplier - 1) * 100).toFixed(0)}%)`
+    );
+  };
+
+  // --------------------------------------
+  // Wishlist Operations
+  // --------------------------------------
   const addToWishlist = (product: Product) => {
-    if (!wishlist.find(item => item.product.id === product.id)) {
+    if (!wishlist.some(w => w.product.id === product.id)) {
       setWishlist([...wishlist, { product }]);
-      toast.success('Added to wishlist ❤️');
+      toast.success("Added to wishlist ❤️");
     }
   };
 
   const removeFromWishlist = (productId: string) => {
-    setWishlist(wishlist.filter(item => item.product.id !== productId));
-    toast.info('Removed from wishlist');
+    setWishlist(wishlist.filter(w => w.product.id !== productId));
+    toast.info("Removed from wishlist");
   };
 
   const moveToCart = (productId: string) => {
@@ -117,64 +141,68 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const clearCart = () => {
-    setCart([]);
-  };
-
+  // --------------------------------------
+  // Place Order
+  // --------------------------------------
   const placeOrder = (items: CartItem[], address: any): string => {
     const orderId = `ORD${Date.now()}`;
-    const total = items.reduce(
-      (sum, item) => sum + item.product.price * priceMultiplier * item.quantity,
-      0
-    );
+
+    const total = items.reduce((sum, item) => {
+      const itemTotal = item.product.price * item.quantity * item.priceMultiplier;
+      return sum + itemTotal;
+    }, 0);
 
     const newOrder: Order = {
       id: orderId,
       items,
       address,
       total,
-      status: 'ordered',
+      status: "ordered",
       date: new Date().toISOString(),
-      estimatedDelivery: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString(),
+      estimatedDelivery: new Date(Date.now() + 5 * 86400000).toISOString()
     };
 
     setOrders([newOrder, ...orders]);
     clearCart();
+
     return orderId;
   };
 
-  const login = (email: string, password: string): boolean => {
+  const clearCart = () => {
+    saveCart([]);
+  };
+
+  // --------------------------------------
+  // Auth
+  // --------------------------------------
+  const login = (email: string, password: string) => {
     setIsAuthenticated(true);
     setUser({
-      name: 'Rajesh Kumar',
-      businessName: 'Kumar General Store',
-      email,
+      name: "Rajesh Kumar",
+      businessName: "Kumar General Store",
+      email
     });
-    toast.success('Welcome back!');
+    toast.success("Welcome back!");
     return true;
   };
 
-  const signup = (data: any): boolean => {
+  const signup = (data: any) => {
     setIsAuthenticated(true);
     setUser({
       name: data.name,
       businessName: data.businessName,
-      email: data.email,
+      email: data.email
     });
-    toast.success('Account created successfully!');
+    toast.success("Account created successfully!");
     return true;
   };
 
   const logout = () => {
     setIsAuthenticated(false);
     setUser(null);
-    setCart([]);
+    clearCart();
     setWishlist([]);
-    setCreditPeriod(null);
-    setPriceMultiplier(1);
-    localStorage.removeItem('creditPeriod');
-    localStorage.removeItem('priceMultiplier');
-    toast.info('Logged out successfully');
+    toast.info("Logged out");
   };
 
   return (
@@ -185,20 +213,23 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         orders,
         isAuthenticated,
         user,
-        creditPeriod,
-        priceMultiplier,
+
         addToCart,
         removeFromCart,
         updateCartQuantity,
+
+        updateItemCreditPeriod,   // ⭐ per-product credit update
+
         addToWishlist,
         removeFromWishlist,
         moveToCart,
+
         placeOrder,
         clearCart,
+
         login,
         signup,
-        logout,
-        updateCreditPeriod,
+        logout
       }}
     >
       {children}
@@ -208,6 +239,6 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
 export const useApp = () => {
   const context = useContext(AppContext);
-  if (!context) throw new Error('useApp must be used within AppProvider');
+  if (!context) throw new Error("useApp must be used within AppProvider");
   return context;
 };

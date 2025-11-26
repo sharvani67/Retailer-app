@@ -11,7 +11,7 @@ import TabBar from '@/components/TabBar';
 const Checkout = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { cart, placeOrder ,priceMultiplier} = useApp();
+  const { cart, placeOrder } = useApp();
   const directBuyItems = location.state?.directBuy;
   const items = directBuyItems || cart;
 
@@ -30,7 +30,7 @@ const Checkout = () => {
   };
 
   // 🧾 Base calculations
-  const total = items.reduce((sum, item) => sum + item.product.price* priceMultiplier * item.quantity, 0);
+  const total = items.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
   
   const baseTotal = total ;
 
@@ -108,7 +108,7 @@ const Checkout = () => {
                   {item.product.name} × {item.quantity}
                 </span>
                 <span className="font-semibold">
-                  ₹{(item.product.price* priceMultiplier * item.quantity).toLocaleString()}
+                  ₹{(item.product.price * item.quantity).toLocaleString()}
                 </span>
               </div>
             ))}

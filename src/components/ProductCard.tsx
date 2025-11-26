@@ -10,7 +10,7 @@ interface ProductCardProps {
 }
 
 const ProductCard = ({ product }: ProductCardProps) => {
-  const { addToCart, addToWishlist, wishlist, priceMultiplier } = useApp();
+  const { addToCart, addToWishlist, wishlist } = useApp();
   const navigate = useNavigate();
   const isWishlisted = wishlist.some(item => item.product.id === product.id);
   
@@ -58,7 +58,7 @@ const ProductCard = ({ product }: ProductCardProps) => {
         
         <div className="flex items-baseline gap-2">
           <span className="text-2xl font-bold text-primary">
-  ₹{(product.price * priceMultiplier).toFixed(2)}
+  ₹{(product.price ).toFixed(2)}
 </span>
           <span className="text-sm text-muted-foreground">/ {product.unit}</span>
         </div>
