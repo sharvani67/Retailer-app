@@ -9,6 +9,13 @@ export interface Product {
   supplier: string;
   stock: number;
 }
+export interface Category {
+  id: string;
+  name: string;
+  icon: string;
+  discount?: number;
+  discountEndDate?: string;
+}
 
 export interface CartItem {
   product: Product;

@@ -1,21 +1,62 @@
-import { Product } from '@/types';
+import { Product,Category } from '@/types';
 import riceImage from '@/assets/rice-product.jpg';
 import dalImage from '@/assets/dal-product.jpg';
 import sugarImage from '@/assets/sugar-product.jpg';
 import oilImage from '@/assets/oil-product.jpg';
 import flourImage from '@/assets/flour-product.jpg';
 import spicesImage from '@/assets/spices-product.jpg';
+import { baseurl } from '@/Api/Baseurl';
 
-export const categories = [
-  { id: 'rice', name: 'Rice', icon: '🍚' },
-  { id: 'pulses', name: 'Pulses', icon: '🫘' },
-  { id: 'oils', name: 'Oils', icon: '🛢️' },
-  { id: 'grains', name: 'Grains', icon: '🌾' },
-  { id: 'spices', name: 'Spices', icon: '🌶️' },
-  { id: 'sugar', name: 'Sugar', icon: '🧂' },
-  { id: 'beverages', name: 'Beverages', icon: '☕' },
-  { id: 'snacks', name: 'Snacks', icon: '🍪' },
-];
+// API URL for categories
+const CATEGORIES_API_URL = `${baseurl}/categories`;
+
+// Function to fetch categories from API
+const fetchCategories = async (): Promise<Category[]> => {
+  try {
+    const response = await fetch(CATEGORIES_API_URL);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    const data = await response.json();
+    
+    // Map the API response to match your Category type
+    return data.map((category: any) => ({
+      id: category.id.toString(),
+      name: category.category_name,
+      discount: category.discount,
+      discountEndDate: category.discount_end_date,
+      // You can add default icons based on category name or keep it simple
+      icon: getCategoryIcon(category.category_name),
+    }));
+  } catch (error) {
+    console.error('Error fetching categories:', error);
+    // Return fallback categories if API fails
+  
+  }
+};
+
+// Helper function to assign icons based on category names
+const getCategoryIcon = (categoryName: string): string => {
+  const iconMap: { [key: string]: string } = {
+    'Home Accessories': '🏠',
+    'Snacks': '🍪',
+    'Kitchen': '🔪',
+    'Laptops': '💻',
+    'Mobile': '📱',
+    'Rice': '🍚',
+    'Pulses': '🫘',
+    'Oils': '🛢️',
+    'Grains': '🌾',
+    'Spices': '🌶️',
+    'Sugar': '🧂',
+    'Beverages': '☕',
+    
+  };
+  
+  return iconMap[categoryName] || '📦'; // Default icon
+};
+
+export const categories: Promise<Category[]> = fetchCategories();
 
 export const products: Product[] = [
   {
