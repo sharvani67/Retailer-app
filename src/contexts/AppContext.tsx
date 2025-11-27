@@ -2,12 +2,24 @@ import React, { createContext, useContext, useState, ReactNode, useEffect } from
 import { Product, CartItem, WishlistItem, Order } from '@/types';
 import { toast } from 'sonner';
 
+// Updated User interface to match your API response
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  mobile_number: string;
+  entity_type: string;
+  business_name: string;
+  // Add any other fields your API returns
+}
+
 interface AppContextType {
   cart: CartItem[];
   wishlist: WishlistItem[];
   orders: Order[];
   isAuthenticated: boolean;
-  user: { name: string; businessName: string; email: string } | null;
+  user: User | null;
 
   addToCart: (product: Product, quantity: number) => void;
   removeFromCart: (productId: string) => void;
@@ -22,7 +34,7 @@ interface AppContextType {
   placeOrder: (items: CartItem[], address: any) => string;
   clearCart: () => void;
 
-  login: (email: string, password: string) => boolean;
+  login: (userData: User) => boolean;
   signup: (data: any) => boolean;
   logout: () => void;
 }
@@ -34,19 +46,43 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [wishlist, setWishlist] = useState<WishlistItem[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [user, setUser] = useState<{ name: string; businessName: string; email: string } | null>(null);
+  const [user, setUser] = useState<User | null>(null);
 
   // --------------------------------------
-  // Load saved cart from LocalStorage
+  // Load saved data from LocalStorage on mount
   // --------------------------------------
   useEffect(() => {
     const savedCart = localStorage.getItem("appCart");
     if (savedCart) setCart(JSON.parse(savedCart));
+
+    const savedUser = localStorage.getItem("appUser");
+    if (savedUser) {
+      const userData = JSON.parse(savedUser);
+      setUser(userData);
+      setIsAuthenticated(true);
+    }
+
+    const savedWishlist = localStorage.getItem("appWishlist");
+    if (savedWishlist) setWishlist(JSON.parse(savedWishlist));
   }, []);
 
   const saveCart = (newCart: CartItem[]) => {
     setCart(newCart);
     localStorage.setItem("appCart", JSON.stringify(newCart));
+  };
+
+  const saveWishlist = (newWishlist: WishlistItem[]) => {
+    setWishlist(newWishlist);
+    localStorage.setItem("appWishlist", JSON.stringify(newWishlist));
+  };
+
+  const saveUser = (userData: User | null) => {
+    setUser(userData);
+    if (userData) {
+      localStorage.setItem("appUser", JSON.stringify(userData));
+    } else {
+      localStorage.removeItem("appUser");
+    }
   };
 
   // --------------------------------------
@@ -61,8 +97,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       const newItem: CartItem = {
         product,
         quantity,
-        creditPeriod: "0",        // default 0 days
-        priceMultiplier: 1.00     // default 0% increase
+        creditPeriod: "0",
+        priceMultiplier: 1.00
       };
       saveCart([...cart, newItem]);
       toast.success(`${product.name} added to cart!`);
@@ -123,13 +159,15 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   // --------------------------------------
   const addToWishlist = (product: Product) => {
     if (!wishlist.some(w => w.product.id === product.id)) {
-      setWishlist([...wishlist, { product }]);
+      const newWishlist = [...wishlist, { product }];
+      saveWishlist(newWishlist);
       toast.success("Added to wishlist ❤️");
     }
   };
 
   const removeFromWishlist = (productId: string) => {
-    setWishlist(wishlist.filter(w => w.product.id !== productId));
+    const newWishlist = wishlist.filter(w => w.product.id !== productId);
+    saveWishlist(newWishlist);
     toast.info("Removed from wishlist");
   };
 
@@ -173,36 +211,40 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   };
 
   // --------------------------------------
-  // Auth
+  // Auth - Updated for API integration
   // --------------------------------------
-  const login = (email: string, password: string) => {
-    setIsAuthenticated(true);
-    setUser({
-      name: "Rajesh Kumar",
-      businessName: "Kumar General Store",
-      email
-    });
-    toast.success("Welcome back!");
-    return true;
+  const login = (userData: User): boolean => {
+    try {
+      setIsAuthenticated(true);
+      saveUser(userData);
+      toast.success(`Welcome back, ${userData.name || userData.business_name || userData.email}!`);
+      return true;
+    } catch (error) {
+      console.error('Login error in context:', error);
+      toast.error('Failed to login');
+      return false;
+    }
   };
 
-  const signup = (data: any) => {
-    setIsAuthenticated(true);
-    setUser({
-      name: data.name,
-      businessName: data.businessName,
-      email: data.email
-    });
-    toast.success("Account created successfully!");
-    return true;
+  const signup = (userData: User): boolean => {
+    try {
+      setIsAuthenticated(true);
+      saveUser(userData);
+      toast.success(`Account created successfully! Welcome, ${userData.name || userData.business_name || userData.email}!`);
+      return true;
+    } catch (error) {
+      console.error('Signup error in context:', error);
+      toast.error('Failed to create account');
+      return false;
+    }
   };
 
   const logout = () => {
     setIsAuthenticated(false);
-    setUser(null);
+    saveUser(null);
     clearCart();
-    setWishlist([]);
-    toast.info("Logged out");
+    saveWishlist([]);
+    toast.info("Logged out successfully");
   };
 
   return (
@@ -218,7 +260,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         removeFromCart,
         updateCartQuantity,
 
-        updateItemCreditPeriod,   // ⭐ per-product credit update
+        updateItemCreditPeriod,
 
         addToWishlist,
         removeFromWishlist,

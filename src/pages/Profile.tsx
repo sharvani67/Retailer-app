@@ -60,7 +60,7 @@ const Profile = () => {
             </div>
             <div className="flex-1">
               <h2 className="text-xl font-bold">{user?.name}</h2>
-              <p className="text-muted-foreground">{user?.businessName}</p>
+              <p className="text-muted-foreground">{user?.business_name}</p>
             </div>
           </div>
 
@@ -71,7 +71,7 @@ const Profile = () => {
             </div>
             <div className="flex items-center gap-3 text-sm">
               <Building2 className="h-4 w-4 text-muted-foreground" />
-              <span>{user?.businessName}</span>
+              <span>{user?.business_name}</span>
             </div>
           </div>
         </motion.div>

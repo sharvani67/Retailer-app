@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useApp } from '@/contexts/AppContext';
 import { Package, Mail, Lock } from 'lucide-react';
+import { baseurl } from '@/Api/Baseurl';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -21,7 +22,7 @@ const Login = () => {
     setIsLoading(true);
 
     try {
-      const response = await fetch('http://localhost:5000/accounts/login', {
+      const response = await fetch(`${baseurl}/accounts/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

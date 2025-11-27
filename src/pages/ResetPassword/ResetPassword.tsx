@@ -1,6 +1,11 @@
 import React, { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import "./ResetPassword.css";
+import { motion } from "framer-motion";
+import { baseurl } from "@/Api/Baseurl";
+import { Package, Mail, Lock } from "lucide-react";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 
 interface LocationState {
   email?: string;
@@ -13,15 +18,14 @@ interface ResetPasswordResponse {
 }
 
 function ResetPassword() {
-  const [otp, setOtp] = useState<string>("");
-  const [newPassword, setNewPassword] = useState<string>("");
-  const [loading, setLoading] = useState<boolean>(false);
-  const [message, setMessage] = useState<string>("");
-  const [error, setError] = useState<string>("");
+  const [otp, setOtp] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Get email from navigation state
   const state = location.state as LocationState;
   const userEmail = state?.email || "";
 
@@ -32,15 +36,13 @@ function ResetPassword() {
     setMessage("");
 
     try {
-      const response = await fetch(`http://localhost:5000/reset-password`, {
+      const response = await fetch(`${baseurl}/reset-password`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ 
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           email: userEmail,
-          otp: otp,
-          newPassword: newPassword
+          otp,
+          newPassword,
         }),
       });
 
@@ -48,88 +50,114 @@ function ResetPassword() {
 
       if (data.success) {
         setMessage("Password reset successfully! Redirecting to login...");
-        setTimeout(() => {
-          navigate("/");
-        }, 2000);
+        setTimeout(() => navigate("/login"), 2000);
       } else {
         setError(data.error || "Failed to reset password. Please try again.");
       }
     } catch (err) {
-      setError("Network error. Please try again.");
       console.error("Reset password error:", err);
+      setError("Network error. Please try again.");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="reset-password-container">
-      <form className="reset-password-form" onSubmit={handleSubmit}>
-        <h2>Reset Password</h2>
+    <div className="min-h-screen gradient-primary flex flex-col items-center justify-center p-6">
+      <motion.div
+        initial={{ scale: 0.9, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={{ duration: 0.5 }}
+        className="w-full max-w-md"
+      >
+        <div className="glass-card rounded-3xl p-8 space-y-6">
 
-        {/* Success Message */}
-        {message && (
-          <div className="success-message">
-            {message}
+          {/* Header */}
+          <div className="text-center space-y-3">
+            <div className="inline-flex items-center justify-center w-16 h-16 bg-primary rounded-2xl mb-2">
+              <Package className="h-8 w-8 text-primary-foreground" />
+            </div>
+            <h1 className="text-3xl font-bold">Reset Password</h1>
+            <p className="text-muted-foreground">
+              Enter OTP and your new password
+            </p>
           </div>
-        )}
 
-        {/* Error Message */}
-        {error && (
-          <div className="error-message">
-            {error}
-          </div>
-        )}
+          {/* Success */}
+          {message && (
+            <div className="bg-green-500/15 text-green-600 px-4 py-3 rounded-md text-sm">
+              {message}
+            </div>
+          )}
 
-        {/* Email Field (Read-only) */}
-        <div className="form-group">
-          <label htmlFor="email">Email</label>
-          <input
-            type="email"
-            id="email"
-            value={userEmail}
-            readOnly
-            className="readonly-field"
-          />
+          {/* Error */}
+          {error && (
+            <div className="bg-destructive/15 text-destructive px-4 py-3 rounded-md text-sm">
+              {error}
+            </div>
+          )}
+
+          {/* Form */}
+          <form onSubmit={handleSubmit} className="space-y-4">
+
+            {/* Email (read-only) */}
+            <div className="space-y-2">
+              <Label>Email</Label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-3 h-5 w-5 text-muted-foreground" />
+                <Input
+                  type="email"
+                  value={userEmail}
+                  readOnly
+                  className="pl-10 bg-muted cursor-not-allowed"
+                />
+              </div>
+            </div>
+
+            {/* OTP */}
+            <div className="space-y-2">
+              <Label>OTP</Label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-3 h-5 w-5 text-muted-foreground" />
+                <Input
+                  type="text"
+                  placeholder="Enter OTP"
+                  value={otp}
+                  onChange={(e) => setOtp(e.target.value)}
+                  className="pl-10"
+                  required
+                  maxLength={6}
+                />
+              </div>
+            </div>
+
+            {/* New Password */}
+            <div className="space-y-2">
+              <Label>New Password</Label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-3 h-5 w-5 text-muted-foreground" />
+                <Input
+                  type="password"
+                  placeholder="Enter new password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className="pl-10"
+                  required
+                  minLength={6}
+                />
+              </div>
+            </div>
+
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={loading}
+            >
+              {loading ? "Resetting..." : "Reset Password"}
+            </Button>
+          </form>
         </div>
-
-        {/* OTP Field */}
-        <div className="form-group">
-          <label htmlFor="otp">OTP</label>
-          <input
-            type="text"
-            id="otp"
-            placeholder="Enter OTP sent to your email"
-            value={otp}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setOtp(e.target.value)}
-            required
-            maxLength={6}
-          />
-        </div>
-
-        {/* New Password Field */}
-        <div className="form-group">
-          <label htmlFor="newPassword">New Password</label>
-          <input
-            type="password"
-            id="newPassword"
-            placeholder="Enter new password"
-            value={newPassword}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewPassword(e.target.value)}
-            required
-            minLength={6}
-          />
-        </div>
-
-        {/* Reset Password Button */}
-        <button 
-          type="submit" 
-          className="reset-btn"
-          disabled={loading}
-        >
-          {loading ? "Resetting..." : "Reset Password"}
-        </button>
-      </form>
+      </motion.div>
     </div>
   );
 }
