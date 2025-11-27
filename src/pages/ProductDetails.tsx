@@ -1,27 +1,100 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Heart, ShoppingCart, Minus, Plus, Store, Package as PackageIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import ProductCard from '@/components/ProductCard';
-import { products } from '@/data/products';
+import { fetchProductById, fetchProducts } from '@/data/products'; // Import the fetch functions
 import { useApp } from '@/contexts/AppContext';
+import { Product } from '@/types';
 
 const ProductDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const product = products.find(p => p.id === id);
+  const [product, setProduct] = useState<Product | null>(null);
+  const [similarProducts, setSimilarProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
   const [quantity, setQuantity] = useState(1);
   const { addToCart, addToWishlist, wishlist } = useApp();
 
-  if (!product) {
-    return <div>Product not found</div>;
+  // Load product and similar products
+  useEffect(() => {
+    const loadProductData = async () => {
+      if (!id) return;
+
+      try {
+        setLoading(true);
+        
+        // Load the current product
+        const productData = await fetchProductById(id);
+        setProduct(productData);
+
+        if (productData) {
+          // Load all products to find similar ones
+          const allProducts = await fetchProducts();
+          const similar = allProducts
+            .filter(p => p.category === productData.category && p.id !== productData.id)
+            .slice(0, 4);
+          setSimilarProducts(similar);
+        }
+      } catch (error) {
+        console.error('Failed to load product data:', error);
+        setProduct(null);
+        setSimilarProducts([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadProductData();
+  }, [id]);
+
+  const isWishlisted = product ? wishlist.some(item => item.product.id === product.id) : false;
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background pb-6">
+        <div className="sticky top-0 z-40 bg-background/95 backdrop-blur-lg border-b border-border">
+          <div className="max-w-md mx-auto flex items-center justify-between p-4">
+            <motion.button
+              whileTap={{ scale: 0.9 }}
+              onClick={() => navigate(-1)}
+              className="p-2 hover:bg-muted rounded-full"
+            >
+              <ArrowLeft className="h-6 w-6" />
+            </motion.button>
+            <span className="font-semibold">Product Details</span>
+            <div className="p-2">
+              <Heart className="h-6 w-6 text-muted-foreground" />
+            </div>
+          </div>
+        </div>
+
+        <div className="max-w-md mx-auto">
+          {/* Loading skeleton */}
+          <div className="h-80 bg-muted animate-pulse"></div>
+          <div className="p-6 space-y-6">
+            <div className="space-y-3">
+              <div className="h-8 bg-muted rounded animate-pulse"></div>
+              <div className="h-4 bg-muted rounded animate-pulse"></div>
+              <div className="h-4 bg-muted rounded w-3/4 animate-pulse"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   }
 
-  const isWishlisted = wishlist.some(item => item.product.id === product.id);
-  const similarProducts = products
-    .filter(p => p.category === product.category && p.id !== product.id)
-    .slice(0, 4);
+  if (!product) {
+    return (
+      <div className="min-h-screen bg-background pb-6 flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold mb-2">Product not found</h2>
+          <Button onClick={() => navigate('/')}>Go back to Home</Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background pb-6">
@@ -85,7 +158,7 @@ const ProductDetails = () => {
               </div>
               <div className="text-right">
                 <div className="text-3xl font-bold text-primary">
-                  ₹{(product.price  ).toLocaleString()}
+                  ₹{product.price.toLocaleString()}
                 </div>
                 <div className="text-sm text-muted-foreground">per {product.unit}</div>
               </div>

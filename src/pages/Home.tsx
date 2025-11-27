@@ -4,43 +4,57 @@ import { Search, Heart, ShoppingCart, Bell } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import ProductCard from '@/components/ProductCard';
 import TabBar from '@/components/TabBar';
-import { products, banners } from '@/data/products';
-import { categories } from '@/data/products'; // This is the Promise
+import { banners, fetchCategories, fetchProducts } from '@/data/products'; // Import the functions
 import { useApp } from '@/contexts/AppContext';
 import { useNavigate } from 'react-router-dom';
-import { Category } from '@/types';
+import { Category, Product } from '@/types';
 
 const Home = () => {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [categoriesList, setCategoriesList] = useState<Category[]>([]);
+  const [productsList, setProductsList] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  const [productsLoading, setProductsLoading] = useState(true);
   const { cart, wishlist } = useApp();
   const navigate = useNavigate();
 
-  // Load categories from the promise
+  // Load categories and products
   useEffect(() => {
-    const loadCategories = async () => {
+    const loadData = async () => {
       try {
         setLoading(true);
-        const data = await categories; // Await the promise
-        setCategoriesList(data);
+        setProductsLoading(true);
+        
+        // Load categories and products in parallel
+        const [categoriesData, productsData] = await Promise.all([
+          fetchCategories(),
+          fetchProducts()
+        ]);
+        
+        setCategoriesList(categoriesData);
+        setProductsList(productsData);
+        
+        console.log('Loaded categories:', categoriesData);
+        console.log('Loaded products:', productsData);
+        
       } catch (error) {
-        console.error('Failed to load categories:', error);
-        // You can set fallback categories here if needed
+        console.error('Failed to load data:', error);
         setCategoriesList([]);
+        setProductsList([]);
       } finally {
         setLoading(false);
+        setProductsLoading(false);
       }
     };
 
-    loadCategories();
+    loadData();
   }, []);
 
-  const filteredProducts = products.filter(product => {
+  const filteredProducts = productsList.filter(product => {
     const matchesCategory = selectedCategory === 'all' || product.category === selectedCategory;
     const matchesSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         product.supplier.toLowerCase().includes(searchQuery.toLowerCase());
+                         (product.supplier && product.supplier.toLowerCase().includes(searchQuery.toLowerCase()));
     return matchesCategory && matchesSearch;
   });
 
@@ -165,24 +179,45 @@ const Home = () => {
           </div>
 
           {/* Products Grid */}
-          <div className="p-4 grid grid-cols-2 gap-4">
-            {filteredProducts.map((product, index) => (
-              <motion.div
-                key={product.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.05 }}
-              >
-                <ProductCard product={product} />
-              </motion.div>
-            ))}
-          </div>
+          <div className="p-4">
+            {productsLoading ? (
+              // Loading state for products
+              <div className="grid grid-cols-2 gap-4">
+                {[1, 2, 3, 4, 5, 6].map((item) => (
+                  <div key={item} className="bg-muted rounded-lg p-4 animate-pulse">
+                    <div className="bg-gray-300 h-32 rounded-lg mb-2"></div>
+                    <div className="bg-gray-300 h-4 rounded mb-1"></div>
+                    <div className="bg-gray-300 h-3 rounded w-3/4"></div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              // Actual products when loaded
+              <div className="grid grid-cols-2 gap-4">
+                {filteredProducts.map((product, index) => (
+                  <motion.div
+                    key={product.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.05 }}
+                  >
+                    <ProductCard product={product} />
+                  </motion.div>
+                ))}
+              </div>
+            )}
 
-          {filteredProducts.length === 0 && (
-            <div className="text-center py-12 text-muted-foreground">
-              <p>No products found</p>
-            </div>
-          )}
+            {!productsLoading && filteredProducts.length === 0 && (
+              <div className="text-center py-12 text-muted-foreground">
+                <p>No products found</p>
+                {productsList.length > 0 && (
+                  <p className="text-sm mt-2">
+                    Try selecting a different category or clearing your search
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
         </main>
 
         <TabBar />

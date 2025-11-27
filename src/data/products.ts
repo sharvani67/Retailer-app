@@ -1,4 +1,4 @@
-import { Product,Category } from '@/types';
+import { Product, Category } from '@/types';
 import riceImage from '@/assets/rice-product.jpg';
 import dalImage from '@/assets/dal-product.jpg';
 import sugarImage from '@/assets/sugar-product.jpg';
@@ -7,8 +7,9 @@ import flourImage from '@/assets/flour-product.jpg';
 import spicesImage from '@/assets/spices-product.jpg';
 import { baseurl } from '@/Api/Baseurl';
 
-// API URL for categories
+// API URLs
 const CATEGORIES_API_URL = `${baseurl}/categories`;
+const PRODUCTS_API_URL = `${baseurl}/get-sales-products`;
 
 // Function to fetch categories from API
 const fetchCategories = async (): Promise<Category[]> => {
@@ -25,13 +26,53 @@ const fetchCategories = async (): Promise<Category[]> => {
       name: category.category_name,
       discount: category.discount,
       discountEndDate: category.discount_end_date,
-      // You can add default icons based on category name or keep it simple
       icon: getCategoryIcon(category.category_name),
     }));
   } catch (error) {
     console.error('Error fetching categories:', error);
     // Return fallback categories if API fails
-  
+    return [];
+  }
+};
+
+// Function to fetch products from API
+const fetchProducts = async (): Promise<Product[]> => {
+  try {
+    const response = await fetch(PRODUCTS_API_URL);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    const data = await response.json();
+    
+    console.log('API Response:', data); // Debug log
+    
+    // Map the API response to match your Product type
+    return data.map((product: any) => ({
+      id: product.id.toString(),
+      name: product.name,
+      description: product.description || `${product.name} - Premium quality product`,
+      price: Number(product.price) || 0, // Convert string to number
+      unit: product.unit,
+      image: getProductImage(product.category),
+      category: product.category_id?.toString(), // Use category_id for filtering
+      supplier: product.supplier,
+      stock: product.stock || 50,
+    }));
+  } catch (error) {
+    console.error('Error fetching products:', error);
+    // Return empty array if API fails
+    return [];
+  }
+};
+
+// Function to fetch a single product by ID
+const fetchProductById = async (id: string): Promise<Product | null> => {
+  try {
+    const products = await fetchProducts();
+    return products.find(product => product.id === id) || null;
+  } catch (error) {
+    console.error('Error fetching product by ID:', error);
+    return null;
   }
 };
 
@@ -50,149 +91,34 @@ const getCategoryIcon = (categoryName: string): string => {
     'Spices': '🌶️',
     'Sugar': '🧂',
     'Beverages': '☕',
-    
   };
   
   return iconMap[categoryName] || '📦'; // Default icon
 };
 
-export const categories: Promise<Category[]> = fetchCategories();
+// Helper function to assign images based on category
+const getProductImage = (category: string): string => {
+  const imageMap: { [key: string]: string } = {
+    'rice': riceImage,
+    'pulses': dalImage,
+    'dal': dalImage,
+    'sugar': sugarImage,
+    'oils': oilImage,
+    'oil': oilImage,
+    'grains': flourImage,
+    'flour': flourImage,
+    'spices': spicesImage,
+    'mobile': flourImage, // Add mappings for your new categories
+    'laptops': flourImage,
+  };
+  
+  return imageMap[category?.toLowerCase()] || flourImage; // Default image
+};
 
-export const products: Product[] = [
-  {
-    id: '1',
-    name: 'Premium Basmati Rice',
-    description: 'Long grain aromatic basmati rice, aged 2 years for perfect texture and aroma.',
-    price: 2500,
-    unit: '50kg bag',
-    image: riceImage,
-    category: 'rice',
-    supplier: 'India Rice Mills',
-    stock: 150,
-  },
-  {
-    id: '2',
-    name: 'Toor Dal (Arhar)',
-    description: 'Premium quality split pigeon peas, rich in protein and perfect for daily meals.',
-    price: 8500,
-    unit: '100kg sack',
-    image: dalImage,
-    category: 'pulses',
-    supplier: 'Dal Traders Co.',
-    stock: 80,
-  },
-  {
-    id: '3',
-    name: 'White Sugar',
-    description: 'Pure crystal white sugar, ideal for retail and commercial use.',
-    price: 1600,
-    unit: '25kg bag',
-    image: sugarImage,
-    category: 'sugar',
-    supplier: 'Sweet Suppliers Ltd',
-    stock: 200,
-  },
-  {
-    id: '4',
-    name: 'Sunflower Oil',
-    description: 'Refined sunflower cooking oil, cholesterol-free and heart-healthy.',
-    price: 1400,
-    unit: '10L can',
-    image: oilImage,
-    category: 'oils',
-    supplier: 'Golden Oil Mills',
-    stock: 120,
-  },
-  {
-    id: '5',
-    name: 'Whole Wheat Flour',
-    description: 'Stone-ground whole wheat flour (atta), 100% natural with no additives.',
-    price: 2200,
-    unit: '50kg bag',
-    image: flourImage,
-    category: 'grains',
-    supplier: 'Chakki Fresh Mills',
-    stock: 100,
-  },
-  {
-    id: '6',
-    name: 'Red Chilli Powder',
-    description: 'Premium quality ground red chilli powder, perfect spice level and color.',
-    price: 3500,
-    unit: '25kg bag',
-    image: spicesImage,
-    category: 'spices',
-    supplier: 'Spice Kingdom',
-    stock: 60,
-  },
-  {
-    id: '7',
-    name: 'Turmeric Powder',
-    description: 'Pure turmeric powder with high curcumin content, bright yellow color.',
-    price: 4200,
-    unit: '25kg bag',
-    image: spicesImage,
-    category: 'spices',
-    supplier: 'Spice Kingdom',
-    stock: 75,
-  },
-  {
-    id: '8',
-    name: 'Moong Dal (Green Gram)',
-    description: 'Husked split green gram, excellent source of protein for healthy diet.',
-    price: 9200,
-    unit: '100kg sack',
-    image: dalImage,
-    category: 'pulses',
-    supplier: 'Dal Traders Co.',
-    stock: 65,
-  },
-  {
-    id: '9',
-    name: 'Instant Tea Premix',
-    description: 'Ready-to-serve tea premix with perfect blend of tea, milk, and sugar.',
-    price: 2800,
-    unit: '20kg box',
-    image: flourImage,
-    category: 'beverages',
-    supplier: 'Chai Master Co.',
-    stock: 90,
-  },
-  {
-    id: '10',
-    name: 'Namkeen Mix',
-    description: 'Assorted savory snack mix, crispy and flavorful for retail sale.',
-    price: 1800,
-    unit: '15kg box',
-    image: flourImage,
-    category: 'snacks',
-    supplier: 'Snack Factory Ltd',
-    stock: 110,
-  },
-  {
-    id: '11',
-    name: 'Brown Sugar',
-    description: 'Natural brown sugar with molasses, perfect for baking and beverages.',
-    price: 1900,
-    unit: '25kg bag',
-    image: sugarImage,
-    category: 'sugar',
-    supplier: 'Sweet Suppliers Ltd',
-    stock: 85,
-  },
-  {
-    id: '12',
-    name: 'Mustard Oil',
-    description: 'Pure cold-pressed mustard oil, strong flavor and aroma.',
-    price: 1650,
-    unit: '10L can',
-    image: oilImage,
-    category: 'oils',
-    supplier: 'Golden Oil Mills',
-    stock: 95,
-  },
-];
+// Export the fetch functions
+export { fetchCategories, fetchProducts, fetchProductById };
 
+// Export the static banners (unchanged)
 export const banners = [
   {
     id: '1',
