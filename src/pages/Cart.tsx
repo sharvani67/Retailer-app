@@ -11,10 +11,68 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { useState, useEffect } from 'react';
+import { baseurl } from '@/Api/Baseurl';
 
 const Cart = () => {
   const { cart, updateCartQuantity, removeFromCart, updateItemCreditPeriod } = useApp();
   const navigate = useNavigate();
+  const [creditPeriods, setCreditPeriods] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  // ============================
+  // FETCH CREDIT PERIODS FROM API
+  // ============================
+  useEffect(() => {
+    const fetchCreditPeriods = async () => {
+      try {
+        console.log('Fetching credit periods from API...');
+        const response = await fetch(`${baseurl}/api/credit-period-fix/credit`);
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const result = await response.json();
+        console.log('Credit periods API response:', result);
+        
+        if (result.success && result.data) {
+          // Transform API data to match frontend expected format
+          const transformedPeriods = result.data.map(period => ({
+            days: parseInt(period.credit_period), // Map credit_period to days
+            percentage: parseInt(period.credit_percentage), // Map credit_percentage to percentage
+            multiplier: 1 + (parseInt(period.credit_percentage) / 100) // Calculate multiplier from percentage
+          }));
+          
+          console.log('Transformed credit periods:', transformedPeriods);
+          setCreditPeriods(transformedPeriods);
+        } else {
+          console.error('Failed to fetch credit periods:', result.message);
+          // Fallback to default periods if API fails
+          setCreditPeriods(getDefaultCreditPeriods());
+        }
+      } catch (error) {
+        console.error('Error fetching credit periods:', error);
+        // Fallback to default periods on error
+        setCreditPeriods(getDefaultCreditPeriods());
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchCreditPeriods();
+  }, []);
+
+  // Default credit periods as fallback
+  const getDefaultCreditPeriods = () => {
+    return [
+      { days: 0, multiplier: 1.00, percentage: 0 },
+      { days: 3, multiplier: 1.04, percentage: 4 },
+      { days: 8, multiplier: 1.08, percentage: 8 },
+      { days: 15, multiplier: 1.12, percentage: 12 },
+      { days: 30, multiplier: 1.15, percentage: 15 }
+    ];
+  };
 
   // ============================
   // TOTAL USING MULTIPLIERS
@@ -29,6 +87,21 @@ const Cart = () => {
       sum + item.product.price * item.quantity * item.priceMultiplier,
     0
   );
+
+  // Helper function to get display text for credit period
+  const getCreditPeriodDisplay = (days) => {
+    const period = creditPeriods.find(cp => cp.days === parseInt(days));
+    if (period) {
+      return `${period.days} days (+${period.percentage}%)`;
+    }
+    return `${days} days`;
+  };
+
+  // Helper function to get multiplier for a credit period
+  const getMultiplierForPeriod = (days) => {
+    const period = creditPeriods.find(cp => cp.days === parseInt(days));
+    return period ? period.multiplier : 1;
+  };
 
   if (cart.length === 0) {
     return (
@@ -178,25 +251,39 @@ const Cart = () => {
                 </div>
 
                 {/* =======================
-                    CREDIT PERIOD SELECT
+                    CREDIT PERIOD SELECT (DYNAMIC FROM API)
                 ======================== */}
                 <div className="mt-3">
                   <Select
-                    value={item.creditPeriod}
-                    onValueChange={(value) =>
-                      updateItemCreditPeriod(item.product.id, value)
-                    }
+                    value={item.creditPeriod?.toString()}
+                    onValueChange={(value) => {
+                      console.log('Selected credit period:', value);
+                      updateItemCreditPeriod(item.product.id, value);
+                    }}
                   >
                     <SelectTrigger className="w-full bg-muted">
-                      <SelectValue placeholder="Credit Period" />
+                      <SelectValue placeholder={
+                        loading ? "Loading..." : "Select Credit Period"
+                      }>
+                        {item.creditPeriod && !loading && getCreditPeriodDisplay(item.creditPeriod)}
+                      </SelectValue>
                     </SelectTrigger>
 
                     <SelectContent>
-                      <SelectItem value="0">0 days (+0%)</SelectItem>
-                      <SelectItem value="3">3 days (+4%)</SelectItem>
-                      <SelectItem value="8">8 days (+8%)</SelectItem>
-                      <SelectItem value="15">15 days (+12%)</SelectItem>
-                      <SelectItem value="30">30 days (+15%)</SelectItem>
+                      {loading ? (
+                        <SelectItem value="loading" disabled>
+                          Loading credit periods...
+                        </SelectItem>
+                      ) : (
+                        creditPeriods.map((period) => (
+                          <SelectItem 
+                            key={period.days} 
+                            value={period.days.toString()}
+                          >
+                            {period.days} days (+{period.percentage}%)
+                          </SelectItem>
+                        ))
+                      )}
                     </SelectContent>
                   </Select>
                 </div>
