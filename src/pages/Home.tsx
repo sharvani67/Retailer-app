@@ -71,7 +71,7 @@ const Home = () => {
                 <p className="text-sm text-muted-foreground">Find the best deals</p>
               </div>
               <div className="flex gap-2">
-                <motion.button
+                {/* <motion.button
                   whileTap={{ scale: 0.9 }}
                   onClick={() => navigate('/wishlist')}
                   className="relative p-2 hover:bg-muted rounded-full"
@@ -82,7 +82,7 @@ const Home = () => {
                       {wishlist.length}
                     </span>
                   )}
-                </motion.button>
+                </motion.button> */}
                 <motion.button
                   whileTap={{ scale: 0.9 }}
                   onClick={() => navigate('/cart')}

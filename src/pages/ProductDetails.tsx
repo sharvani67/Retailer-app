@@ -64,9 +64,9 @@ const ProductDetails = () => {
               <ArrowLeft className="h-6 w-6" />
             </motion.button>
             <span className="font-semibold">Product Details</span>
-            <div className="p-2">
+            {/* <div className="p-2">
               <Heart className="h-6 w-6 text-muted-foreground" />
-            </div>
+            </div> */}
           </div>
         </div>
 
@@ -100,26 +100,34 @@ const ProductDetails = () => {
     <div className="min-h-screen bg-background pb-6">
       {/* Header */}
       <div className="sticky top-0 z-40 bg-background/95 backdrop-blur-lg border-b border-border">
-        <div className="max-w-md mx-auto flex items-center justify-between p-4">
-          <motion.button
-            whileTap={{ scale: 0.9 }}
-            onClick={() => navigate(-1)}
-            className="p-2 hover:bg-muted rounded-full"
-          >
-            <ArrowLeft className="h-6 w-6" />
-          </motion.button>
-          <span className="font-semibold">Product Details</span>
-          <motion.button
-            whileTap={{ scale: 0.9 }}
-            onClick={() => addToWishlist(product)}
-            className={`p-2 hover:bg-muted rounded-full ${
-              isWishlisted ? 'text-destructive' : ''
-            }`}
-          >
-            <Heart className={`h-6 w-6 ${isWishlisted ? 'fill-current' : ''}`} />
-          </motion.button>
-        </div>
-      </div>
+  <div className="max-w-md mx-auto relative flex items-center justify-between p-4">
+    
+    <motion.button
+      whileTap={{ scale: 0.9 }}
+      onClick={() => navigate(-1)}
+      className="p-2 hover:bg-muted rounded-full"
+    >
+      <ArrowLeft className="h-6 w-6" />
+    </motion.button>
+
+    {/* Centered heading */}
+    <span className="font-semibold absolute left-1/2 -translate-x-1/2">
+      Product Details
+    </span>
+
+    {/* <motion.button
+      whileTap={{ scale: 0.9 }}
+      onClick={() => addToWishlist(product)}
+      className={`p-2 hover:bg-muted rounded-full ${
+        isWishlisted ? 'text-destructive' : ''
+      }`}
+    >
+      <Heart className={`h-6 w-6 ${isWishlisted ? 'fill-current' : ''}`} />
+    </motion.button> */}
+
+  </div>
+</div>
+
 
       <div className="max-w-md mx-auto">
         {/* Product Image */}
@@ -224,14 +232,14 @@ const ProductDetails = () => {
               <ShoppingCart className="h-5 w-5 mr-2" />
               Add to Cart
             </Button>
-            <Button
+            {/* <Button
               onClick={() => navigate('/checkout', { state: { directBuy: [{ product, quantity }] } })}
               variant="secondary"
               size="lg"
               className="flex-1"
             >
               Buy Now
-            </Button>
+            </Button> */}
           </motion.div>
 
           {/* Similar Products */}

@@ -29,7 +29,7 @@ const ProductCard = ({ product }: ProductCardProps) => {
           alt={product.name}
           className="w-full h-full object-cover"
         />
-        <motion.button
+        {/* <motion.button
           whileTap={{ scale: 0.9 }}
           onClick={(e) => {
             e.stopPropagation();
@@ -42,7 +42,7 @@ const ProductCard = ({ product }: ProductCardProps) => {
           } shadow-lg`}
         >
           <Heart className={`h-4 w-4 ${isWishlisted ? 'fill-current' : ''}`} />
-        </motion.button>
+        </motion.button> */}
         {product.stock < 50 && (
           <div className="absolute top-3 left-3 px-3 py-1 bg-warning text-warning-foreground text-xs font-semibold rounded-full">
             Low Stock
@@ -56,12 +56,15 @@ const ProductCard = ({ product }: ProductCardProps) => {
           <p className="text-xs text-muted-foreground mt-0.5">{product.supplier}</p>
         </div>
         
-        <div className="flex items-baseline gap-2">
-          <span className="text-2xl font-bold text-primary">
-  ₹{(product.price ).toFixed(2)}
-</span>
-          <span className="text-sm text-muted-foreground">/ {product.unit}</span>
-        </div>
+        <div className="flex flex-col">
+  <span className="text-2xl font-bold text-primary">
+    ₹{product.price.toFixed(2)}
+  </span>
+  <span className="text-sm text-muted-foreground">
+    {product.unit}
+  </span>
+</div>
+
 
         <div className="flex gap-2">
           <Button
@@ -73,9 +76,9 @@ const ProductCard = ({ product }: ProductCardProps) => {
             variant="default"
           >
             <ShoppingCart className="h-4 w-4 mr-1" />
-            
+            Add to Cart
           </Button>
-          <Button
+          {/* <Button
             onClick={(e) => {
               e.stopPropagation();
               navigate('/checkout', { state: { directBuy: [{ product, quantity: 1 }] } });
@@ -85,7 +88,7 @@ const ProductCard = ({ product }: ProductCardProps) => {
           >
             <Zap className="h-4 w-4 mr-1" />
             Buy
-          </Button>
+          </Button> */}
         </div>
       </div>
     </motion.div>
