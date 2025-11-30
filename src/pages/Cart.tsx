@@ -48,13 +48,11 @@ const Cart = () => {
           setCreditPeriods(transformedPeriods);
         } else {
           console.error('Failed to fetch credit periods:', result.message);
-          // Fallback to default periods if API fails
-          setCreditPeriods(getDefaultCreditPeriods());
+         
         }
       } catch (error) {
         console.error('Error fetching credit periods:', error);
-        // Fallback to default periods on error
-        setCreditPeriods(getDefaultCreditPeriods());
+     
       } finally {
         setLoading(false);
       }
@@ -63,16 +61,6 @@ const Cart = () => {
     fetchCreditPeriods();
   }, []);
 
-  // Default credit periods as fallback
-  const getDefaultCreditPeriods = () => {
-    return [
-      { days: 0, multiplier: 1.00, percentage: 0 },
-      { days: 3, multiplier: 1.04, percentage: 4 },
-      { days: 8, multiplier: 1.08, percentage: 8 },
-      { days: 15, multiplier: 1.12, percentage: 12 },
-      { days: 30, multiplier: 1.15, percentage: 15 }
-    ];
-  };
 
   // ============================
   // TOTAL USING MULTIPLIERS

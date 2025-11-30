@@ -11,8 +11,15 @@ export interface User {
   mobile_number: string;
   entity_type: string;
   business_name: string;
-  // Add any other fields your API returns
+  discount: string;
+  shipping_address_line1: string;
+  shipping_address_line2: string;
+  shipping_city: string;
+  shipping_pin_code: string;
+  shipping_state: string;
+  shipping_country: string;
 }
+
 
 interface AppContextType {
   cart: CartItem[];
