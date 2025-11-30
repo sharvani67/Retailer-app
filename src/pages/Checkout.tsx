@@ -96,9 +96,7 @@ const Checkout = () => {
         credit_period: calculateAverageCreditPeriod(items),
         estimated_delivery_date: new Date(Date.now() + 5 * 86400000).toISOString().split('T')[0],
         order_placed_by: user.id, // FIX: Use user ID instead of name
-        order_mode: 'online',
-        invoice_number: `INV${Date.now()}`,
-        invoice_date: new Date().toISOString().split('T')[0]
+        order_mode: 'online'
       };
 
       // First create the main order
