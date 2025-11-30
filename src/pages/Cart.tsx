@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { ArrowLeft, Minus, Plus, Trash2, ShoppingBag } from 'lucide-react';
+import { ArrowLeft, Minus, Plus, Trash2, ShoppingBag, Tag } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import TabBar from '@/components/TabBar';
 import { useApp } from '@/contexts/AppContext';
@@ -46,26 +46,60 @@ const Cart = () => {
     initializeCart();
   }, [user, syncCartWithBackend, isInitialized]);
 
-  // Calculate item total with credit multiplier
+  // Calculate user discount percentage - convert decimal to percentage
+  const userDiscountDecimal = user?.discount ? parseFloat(user.discount) : 0;
+  const userDiscountPercentage = userDiscountDecimal * 100; // Convert 0.12 to 12%
+
+  // Calculate item total with credit multiplier and discount
   const calculateItemTotal = (item: any) => {
     const multiplier = item.priceMultiplier || 1;
-    return item.product.price * item.quantity * multiplier;
+    const baseTotal = item.product.price * item.quantity * multiplier;
+    
+    // Apply user discount if available (using decimal value)
+    if (userDiscountDecimal > 0) {
+      return baseTotal * (1 - userDiscountDecimal);
+    }
+    
+    return baseTotal;
   };
 
-  // Calculate subtotal without credit
+  // Calculate item discount amount
+  const calculateItemDiscount = (item: any) => {
+    if (userDiscountDecimal <= 0) return 0;
+    
+    const multiplier = item.priceMultiplier || 1;
+    const baseTotal = item.product.price * item.quantity * multiplier;
+    return baseTotal * userDiscountDecimal;
+  };
+
+  // Calculate subtotal without credit and discount
   const subtotal = cart.reduce(
     (sum, item) => sum + item.product.price * item.quantity,
     0
   );
 
-  // Calculate final total with credit multipliers
+  // Calculate total credit charges
+  const totalCreditCharges = cart.reduce(
+    (sum, item) => {
+      const multiplier = item.priceMultiplier || 1;
+      const baseTotal = item.product.price * item.quantity;
+      const creditTotal = baseTotal * multiplier;
+      return sum + (creditTotal - baseTotal);
+    },
+    0
+  );
+
+  // Calculate total discount amount
+  const totalDiscount = cart.reduce(
+    (sum, item) => sum + calculateItemDiscount(item),
+    0
+  );
+
+  // Calculate final total with credit multipliers and discount
   const finalTotal = cart.reduce(
     (sum, item) => sum + calculateItemTotal(item),
     0
   );
-
-  // Calculate total credit charges
-  const totalCreditCharges = finalTotal - subtotal;
 
   // Helper function to get display text for credit period
   const getCreditPeriodDisplay = (days: string) => {
@@ -132,7 +166,8 @@ const Cart = () => {
     console.log('Cart items:', cart);
     console.log('Subtotal (without credit):', subtotal);
     console.log('Total credit charges:', totalCreditCharges);
-    console.log('Final total (with credit):', finalTotal);
+    console.log('Total discount:', totalDiscount);
+    console.log('Final total (with credit & discount):', finalTotal);
     
     navigate('/checkout', { 
       state: { 
@@ -141,6 +176,8 @@ const Cart = () => {
         creditBreakdown: {
           subtotal,
           totalCreditCharges,
+          totalDiscount,
+          userDiscount: userDiscountPercentage,
           finalTotal
         }
       } 
@@ -217,12 +254,33 @@ const Cart = () => {
       </header>
 
       <main className="max-w-md mx-auto p-4 space-y-4 pb-20">
-        {/* CART ITEMS WITH CREDIT PERIOD PER PRODUCT */}
+        {/* USER DISCOUNT BANNER */}
+        {userDiscountDecimal > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-gradient-to-r from-green-500 to-emerald-600 rounded-2xl p-4 text-white shadow-lg"
+          >
+            <div className="flex items-center gap-3">
+              <Tag className="h-5 w-5" />
+              <div>
+                <p className="font-semibold">Special Discount Applied!</p>
+                <p className="text-sm opacity-90">
+                  You're getting {userDiscountPercentage}% off on all items as a valued customer
+                </p>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* CART ITEMS WITH CREDIT PERIOD AND DISCOUNT */}
         {cart.map((item, index) => {
           const itemMultiplier = item.priceMultiplier || 1;
           const itemPercentage = item.creditPercentage || 0;
           const itemTotal = calculateItemTotal(item);
-          const itemCreditCharge = itemTotal - (item.product.price * item.quantity);
+          const itemCreditCharge = (item.product.price * item.quantity * itemMultiplier) - (item.product.price * item.quantity);
+          const itemDiscount = calculateItemDiscount(item);
+          const itemBaseTotal = item.product.price * item.quantity * itemMultiplier;
 
           return (
             <motion.div
@@ -245,9 +303,6 @@ const Cart = () => {
                       <h3 className="font-semibold line-clamp-1">
                         {item.product.name}
                       </h3>
-                      <p className="text-xs text-muted-foreground">
-                        {item.product.supplier}
-                      </p>
                     </div>
 
                     <motion.button
@@ -268,26 +323,38 @@ const Cart = () => {
                     
                     {item.creditPeriod !== "0" && (
                       <div className="text-sm text-muted-foreground">
-                        Credit applied: 
-                        <span className="font-semibold text-primary ml-1">
-                          +{itemPercentage}% (×{itemMultiplier.toFixed(2)})
-                        </span>
-                      </div>
-                    )}
-
-                    {item.creditPeriod !== "0" && (
-                      <div className="text-sm text-muted-foreground">
                         Credit charge: 
                         <span className="font-semibold text-orange-500 ml-1">
                           ₹{itemCreditCharge.toLocaleString()}
                         </span>
                       </div>
                     )}
+
+                    {userDiscountDecimal > 0 && (
+                      <div className="text-sm text-muted-foreground">
+                        Your discount ({userDiscountPercentage}%): 
+                        <span className="font-semibold text-green-600 ml-1">
+                          -₹{itemDiscount.toLocaleString()}
+                        </span>
+                      </div>
+                    )}
                   </div>
 
-                  <div className="text-lg font-bold text-primary">
-                    ₹{itemTotal.toLocaleString()}
-                  </div>
+                  {/* Original price with strikethrough if discount applied */}
+                  {userDiscountDecimal > 0 ? (
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg font-bold text-primary">
+                        ₹{itemTotal.toLocaleString()}
+                      </span>
+                      <span className="text-sm text-muted-foreground line-through">
+                        ₹{itemBaseTotal.toLocaleString()}
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="text-lg font-bold text-primary">
+                      ₹{itemTotal.toLocaleString()}
+                    </div>
+                  )}
 
                   {/* Quantity Buttons */}
                   <div className="flex items-center justify-between">
@@ -343,6 +410,18 @@ const Cart = () => {
                       </SelectContent>
                     </Select>
                   </div>
+
+                  {/* DISCOUNT DISPLAY */}
+                  {userDiscountDecimal > 0 && (
+                    <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded-lg">
+                      <div className="flex items-center gap-2 text-green-700">
+                        <Tag className="h-3 w-3" />
+                        <span className="text-xs font-medium">
+                          Your {userDiscountPercentage}% discount applied: -₹{itemDiscount.toLocaleString()}
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </motion.div>
@@ -368,12 +447,25 @@ const Cart = () => {
             <span className="text-orange-500">+₹{totalCreditCharges.toLocaleString()}</span>
           </div>
 
+          {userDiscountDecimal > 0 && (
+            <div className="flex justify-between text-green-600">
+              <span>Your Discount ({userDiscountPercentage}%)</span>
+              <span className="font-semibold">-₹{totalDiscount.toLocaleString()}</span>
+            </div>
+          )}
+
           <div className="border-t border-border pt-3 flex justify-between text-xl font-bold">
             <span>Final Total</span>
             <span className="text-primary">
               ₹{finalTotal.toLocaleString()}
             </span>
           </div>
+
+          {userDiscountDecimal > 0 && (
+            <div className="text-xs text-muted-foreground text-center pt-2">
+              You saved ₹{totalDiscount.toLocaleString()} with your special discount!
+            </div>
+          )}
         </motion.div>
 
         {/* ACTION BUTTONS */}
