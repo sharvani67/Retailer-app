@@ -102,11 +102,11 @@ const OrderConfirmation = () => {
           className="flex flex-col gap-3 pt-4"
         >
           <Button
-            onClick={() => navigate('/order-tracking', { state: { orderId , total } })}
+            onClick={() => navigate('/orders')}
             size="lg"
             className="w-full"
           >
-            Track Order
+            View Orders
           </Button>
           <Button
             onClick={() => navigate('/home')}

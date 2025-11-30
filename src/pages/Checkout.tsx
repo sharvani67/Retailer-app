@@ -228,7 +228,7 @@ const Checkout = () => {
           <h2 className="text-lg font-semibold mb-4">Order Summary</h2>
 
           {/* Items List */}
-          <div className="space-y-3 mb-4">
+          {/* <div className="space-y-3 mb-4">
             {items.map((item) => {
               const itemMultiplier = item.priceMultiplier || 1;
               const itemBaseTotal = item.product.price * item.quantity;
@@ -270,7 +270,7 @@ const Checkout = () => {
                 </div>
               );
             })}
-          </div>
+          </div> */}
 
           {/* Order Total Breakdown */}
           <div className="border-t border-border pt-4 space-y-3">

@@ -481,7 +481,7 @@ const updateCartQuantity = async (productId: string, quantity: number): Promise<
   const logout = () => {
     setIsAuthenticated(false);
     saveUser(null);
-    clearCart();
+    
     saveWishlist([]);
     toast.info("Logged out successfully");
   };
