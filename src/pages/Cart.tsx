@@ -12,84 +12,65 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useState, useEffect } from 'react';
-import { baseurl } from '@/Api/Baseurl';
 
 const Cart = () => {
-  const { cart, updateCartQuantity, removeFromCart, updateItemCreditPeriod } = useApp();
+  const { 
+    cart, 
+    updateCartQuantity, 
+    removeFromCart, 
+    updateItemCreditPeriod,
+    creditPeriods,
+    user,
+    syncCartWithBackend
+  } = useApp();
   const navigate = useNavigate();
-  const [creditPeriods, setCreditPeriods] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
 
-  // ============================
-  // FETCH CREDIT PERIODS FROM API
-  // ============================
+  // Sync cart on component mount and when user changes
   useEffect(() => {
-    const fetchCreditPeriods = async () => {
-      try {
-        console.log('Fetching credit periods from API...');
-        const response = await fetch(`${baseurl}/api/credit-period-fix/credit`);
-        
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
+    const initializeCart = async () => {
+      if (user && !isInitialized) {
+        setLoading(true);
+        try {
+          await syncCartWithBackend();
+          setIsInitialized(true);
+        } catch (error) {
+          console.error('Error initializing cart:', error);
+        } finally {
+          setLoading(false);
         }
-        
-        const result = await response.json();
-        console.log('Credit periods API response:', result);
-        
-        if (result.success && result.data) {
-          // Transform API data to match frontend expected format
-          const transformedPeriods = result.data.map(period => ({
-            days: parseInt(period.credit_period), // Map credit_period to days
-            percentage: parseInt(period.credit_percentage), // Map credit_percentage to percentage
-            multiplier: 1 + (parseInt(period.credit_percentage) / 100) // Calculate multiplier from percentage
-          }));
-          
-          console.log('Transformed credit periods:', transformedPeriods);
-          setCreditPeriods(transformedPeriods);
-        } else {
-          console.error('Failed to fetch credit periods:', result.message);
-          // Fallback to default periods if API fails
-          setCreditPeriods(getDefaultCreditPeriods());
-        }
-      } catch (error) {
-        console.error('Error fetching credit periods:', error);
-        // Fallback to default periods on error
-        setCreditPeriods(getDefaultCreditPeriods());
-      } finally {
-        setLoading(false);
       }
     };
 
-    fetchCreditPeriods();
-  }, []);
+    initializeCart();
+  }, [user, syncCartWithBackend, isInitialized]);
 
-  // Default credit periods as fallback
-  const getDefaultCreditPeriods = () => {
-    return [
-      { days: 0, multiplier: 1.00, percentage: 0 },
-      { days: 3, multiplier: 1.04, percentage: 4 },
-      { days: 8, multiplier: 1.08, percentage: 8 },
-      { days: 15, multiplier: 1.12, percentage: 12 },
-      { days: 30, multiplier: 1.15, percentage: 15 }
-    ];
+  // Calculate item total with credit multiplier
+  const calculateItemTotal = (item: any) => {
+    const multiplier = item.priceMultiplier || 1;
+    return item.product.price * item.quantity * multiplier;
   };
 
-  // ============================
-  // TOTAL USING MULTIPLIERS
-  // ============================
+  // Calculate subtotal without credit
   const subtotal = cart.reduce(
     (sum, item) => sum + item.product.price * item.quantity,
     0
   );
 
+  // Calculate final total with credit multipliers
   const finalTotal = cart.reduce(
-    (sum, item) =>
-      sum + item.product.price * item.quantity * item.priceMultiplier,
+    (sum, item) => sum + calculateItemTotal(item),
     0
   );
 
+  // Calculate total credit charges
+  const totalCreditCharges = finalTotal - subtotal;
+
   // Helper function to get display text for credit period
-  const getCreditPeriodDisplay = (days) => {
+  const getCreditPeriodDisplay = (days: string) => {
+    if (!days && days !== "0") return "Select Credit Period";
+    
     const period = creditPeriods.find(cp => cp.days === parseInt(days));
     if (period) {
       return `${period.days} days (+${period.percentage}%)`;
@@ -97,11 +78,85 @@ const Cart = () => {
     return `${days} days`;
   };
 
-  // Helper function to get multiplier for a credit period
-  const getMultiplierForPeriod = (days) => {
-    const period = creditPeriods.find(cp => cp.days === parseInt(days));
-    return period ? period.multiplier : 1;
+  // Handle credit period change
+  const handleCreditPeriodChange = async (productId: string, selectedDays: string) => {
+    setLoading(true);
+    try {
+      const period = creditPeriods.find(cp => cp.days === parseInt(selectedDays));
+      await updateItemCreditPeriod(productId, selectedDays, period?.percentage);
+      // Refresh cart data after credit period update
+      await syncCartWithBackend();
+    } catch (error) {
+      console.error('Error updating credit period:', error);
+    } finally {
+      setLoading(false);
+    }
   };
+
+  // Handle quantity update
+  const handleQuantityUpdate = async (productId: string, newQuantity: number) => {
+    setLoading(true);
+    try {
+      await updateCartQuantity(productId, newQuantity);
+      // Refresh cart data after quantity update
+      await syncCartWithBackend();
+    } catch (error) {
+      console.error('Error updating quantity:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handle item removal
+  const handleRemoveItem = async (productId: string) => {
+    setLoading(true);
+    try {
+      await removeFromCart(productId);
+      // Refresh cart data after removal
+      await syncCartWithBackend();
+    } catch (error) {
+      console.error('Error removing item:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Checkout handler
+  const handleCheckout = () => {
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+
+    console.log('=== CART PAGE - CHECKOUT DATA ===');
+    console.log('Cart items:', cart);
+    console.log('Subtotal (without credit):', subtotal);
+    console.log('Total credit charges:', totalCreditCharges);
+    console.log('Final total (with credit):', finalTotal);
+    
+    navigate('/checkout', { 
+      state: { 
+        finalTotal,
+        cartItems: cart,
+        creditBreakdown: {
+          subtotal,
+          totalCreditCharges,
+          finalTotal
+        }
+      } 
+    });
+  };
+
+  if (loading && !isInitialized) {
+    return (
+      <div className="min-h-screen bg-background pb-20 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p>Loading cart...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (cart.length === 0) {
     return (
@@ -162,135 +217,137 @@ const Cart = () => {
       </header>
 
       <main className="max-w-md mx-auto p-4 space-y-4 pb-20">
-        {/* ==========================================================
-           CART ITEMS WITH CREDIT PERIOD PER PRODUCT
-        ========================================================== */}
-        {cart.map((item, index) => (
-          <motion.div
-            key={item.product.id}
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: index * 0.05 }}
-            className="bg-card rounded-2xl p-4 shadow-lg border border-border"
-          >
-            <div className="flex gap-4">
-              <img
-                src={item.product.image}
-                alt={item.product.name}
-                className="w-24 h-24 object-cover rounded-xl bg-muted"
-              />
+        {/* CART ITEMS WITH CREDIT PERIOD PER PRODUCT */}
+        {cart.map((item, index) => {
+          const itemMultiplier = item.priceMultiplier || 1;
+          const itemPercentage = item.creditPercentage || 0;
+          const itemTotal = calculateItemTotal(item);
+          const itemCreditCharge = itemTotal - (item.product.price * item.quantity);
 
-              <div className="flex-1 space-y-2">
-                <div className="flex justify-between">
-                  <div className="flex-1">
-                    <h3 className="font-semibold line-clamp-1">
-                      {item.product.name}
-                    </h3>
-                    <p className="text-xs text-muted-foreground">
-                      {item.product.supplier}
-                    </p>
+          return (
+            <motion.div
+              key={`${item.product.id}-${item.id || index}`}
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: index * 0.05 }}
+              className="bg-card rounded-2xl p-4 shadow-lg border border-border"
+            >
+              <div className="flex gap-4">
+                <img
+                  src={item.product.image}
+                  alt={item.product.name}
+                  className="w-24 h-24 object-cover rounded-xl bg-muted"
+                />
+
+                <div className="flex-1 space-y-2">
+                  <div className="flex justify-between">
+                    <div className="flex-1">
+                      <h3 className="font-semibold line-clamp-1">
+                        {item.product.name}
+                      </h3>
+                      <p className="text-xs text-muted-foreground">
+                        {item.product.supplier}
+                      </p>
+                    </div>
+
+                    <motion.button
+                      whileTap={{ scale: 0.9 }}
+                      onClick={() => handleRemoveItem(item.product.id)}
+                      disabled={loading}
+                      className="p-2 hover:bg-muted rounded-full text-destructive disabled:opacity-50"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </motion.button>
                   </div>
 
-                  <motion.button
-                    whileTap={{ scale: 0.9 }}
-                    onClick={() => removeFromCart(item.product.id)}
-                    className="p-2 hover:bg-muted rounded-full text-destructive"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </motion.button>
-                </div>
+                  {/* PRODUCT PRICE BREAKDOWN */}
+                  <div className="space-y-1">
+                    <div className="text-sm text-muted-foreground">
+                      Base price: ₹{item.product.price.toLocaleString()} × {item.quantity}
+                    </div>
+                    
+                    {item.creditPeriod !== "0" && (
+                      <div className="text-sm text-muted-foreground">
+                        Credit applied: 
+                        <span className="font-semibold text-primary ml-1">
+                          +{itemPercentage}% (×{itemMultiplier.toFixed(2)})
+                        </span>
+                      </div>
+                    )}
 
-                {/* PRODUCT PRICE WITH MULTIPLIER */}
-                <div className="text-sm text-muted-foreground">
-                  Credit applied:
-                  <span className="font-semibold text-primary ml-1">
-                    +{((item.priceMultiplier - 1) * 100).toFixed(0)}%
-                  </span>
-                </div>
-
-                <div className="text-lg font-bold text-primary">
-                  ₹
-                  {(
-                    item.product.price *
-                    item.quantity *
-                    item.priceMultiplier
-                  ).toLocaleString()}
-                </div>
-
-                {/* =======================
-                    Quantity Buttons
-                ======================== */}
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 bg-muted rounded-full p-1">
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      onClick={() =>
-                        updateCartQuantity(item.product.id, item.quantity - 1)
-                      }
-                      className="rounded-full h-7 w-7"
-                    >
-                      <Minus className="h-3 w-3" />
-                    </Button>
-
-                    <span className="text-sm font-semibold w-8 text-center">
-                      {item.quantity}
-                    </span>
-
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      onClick={() =>
-                        updateCartQuantity(item.product.id, item.quantity + 1)
-                      }
-                      className="rounded-full h-7 w-7"
-                    >
-                      <Plus className="h-3 w-3" />
-                    </Button>
+                    {item.creditPeriod !== "0" && (
+                      <div className="text-sm text-muted-foreground">
+                        Credit charge: 
+                        <span className="font-semibold text-orange-500 ml-1">
+                          ₹{itemCreditCharge.toLocaleString()}
+                        </span>
+                      </div>
+                    )}
                   </div>
-                </div>
 
-                {/* =======================
-                    CREDIT PERIOD SELECT (DYNAMIC FROM API)
-                ======================== */}
-                <div className="mt-3">
-                  <Select
-                    value={item.creditPeriod?.toString()}
-                    onValueChange={(value) => {
-                      console.log('Selected credit period:', value);
-                      updateItemCreditPeriod(item.product.id, value);
-                    }}
-                  >
-                    <SelectTrigger className="w-full bg-muted">
-                      <SelectValue placeholder={
-                        loading ? "Loading..." : "Select Credit Period"
-                      }>
-                        {item.creditPeriod && !loading && getCreditPeriodDisplay(item.creditPeriod)}
-                      </SelectValue>
-                    </SelectTrigger>
+                  <div className="text-lg font-bold text-primary">
+                    ₹{itemTotal.toLocaleString()}
+                  </div>
 
-                    <SelectContent>
-                      {loading ? (
-                        <SelectItem value="loading" disabled>
-                          Loading credit periods...
-                        </SelectItem>
-                      ) : (
-                        creditPeriods.map((period) => (
+                  {/* Quantity Buttons */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 bg-muted rounded-full p-1">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => handleQuantityUpdate(item.product.id, item.quantity - 1)}
+                        className="rounded-full h-7 w-7"
+                        disabled={item.quantity <= 1 || loading}
+                      >
+                        <Minus className="h-3 w-3" />
+                      </Button>
+
+                      <span className="text-sm font-semibold w-8 text-center">
+                        {item.quantity}
+                      </span>
+
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => handleQuantityUpdate(item.product.id, item.quantity + 1)}
+                        className="rounded-full h-7 w-7"
+                        disabled={loading}
+                      >
+                        <Plus className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* CREDIT PERIOD SELECT (DYNAMIC FROM API) */}
+                  <div className="mt-3">
+                    <Select
+                      value={item.creditPeriod || "0"}
+                      onValueChange={(value) => handleCreditPeriodChange(item.product.id, value)}
+                      disabled={loading}
+                    >
+                      <SelectTrigger className="w-full bg-muted">
+                        <SelectValue>
+                          {getCreditPeriodDisplay(item.creditPeriod)}
+                        </SelectValue>
+                      </SelectTrigger>
+
+                      <SelectContent>
+                        {creditPeriods.map((period) => (
                           <SelectItem 
                             key={period.days} 
                             value={period.days.toString()}
                           >
                             {period.days} days (+{period.percentage}%)
                           </SelectItem>
-                        ))
-                      )}
-                    </SelectContent>
-                  </Select>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
               </div>
-            </div>
-          </motion.div>
-        ))}
+            </motion.div>
+          );
+        })}
 
         {/* ORDER SUMMARY */}
         <motion.div
@@ -302,17 +359,17 @@ const Cart = () => {
           <h3 className="font-semibold text-lg mb-4">Order Summary</h3>
 
           <div className="flex justify-between text-muted-foreground">
-            <span>Subtotal (without credit)</span>
+            <span>Subtotal ({cart.length} items)</span>
             <span>₹{subtotal.toLocaleString()}</span>
           </div>
 
           <div className="flex justify-between text-muted-foreground">
-            <span>Credit Charges</span>
-            <span>₹{(finalTotal - subtotal).toLocaleString()}</span>
+            <span>Total Credit Charges</span>
+            <span className="text-orange-500">+₹{totalCreditCharges.toLocaleString()}</span>
           </div>
 
           <div className="border-t border-border pt-3 flex justify-between text-xl font-bold">
-            <span>Total</span>
+            <span>Final Total</span>
             <span className="text-primary">
               ₹{finalTotal.toLocaleString()}
             </span>
@@ -336,11 +393,12 @@ const Cart = () => {
           </Button>
 
           <Button
-            onClick={() => navigate('/checkout', { state: { finalTotal } })}
+            onClick={handleCheckout}
             size="lg"
             className="flex-1"
+            disabled={loading}
           >
-            Checkout
+            {loading ? "Processing..." : "Checkout"}
           </Button>
         </motion.div>
       </main>
