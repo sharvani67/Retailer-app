@@ -11,19 +11,26 @@ import TabBar from '@/components/TabBar';
 const Checkout = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { cart, placeOrder } = useApp();
+  const { cart, placeOrder,user } = useApp();
   const directBuyItems = location.state?.directBuy;
   const items = directBuyItems || cart;
 
   // Address
-  const [address, setAddress] = useState({
-    name: 'Rajesh',
-    businessName: 'Rajesh Retail Stores',
-    phone: '9875434577',
-    addressLine: 'Ashoknagar',
-    city: 'Hyderabad',
-    pincode: '505001',
-  });
+const [address, setAddress] = useState({
+  name: user?.name || "",
+  businessName: user?.business_name || "",
+  phone: user?.mobile_number || "",
+  addressLine: 
+    `${user?.shipping_address_line1 || ""}, ` +
+    `${user?.shipping_address_line2 || ""}, ` +
+    `${user?.shipping_city || ""}, ` +
+    `${user?.shipping_state || ""} - ` +
+    `${user?.shipping_pin_code || ""}, ` +
+    `${user?.shipping_country || ""}`,
+  city: user?.shipping_city || "",
+  pincode: user?.shipping_pin_code || "",
+});
+
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setAddress({ ...address, [e.target.id]: e.target.value });
