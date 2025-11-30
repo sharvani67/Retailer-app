@@ -10,10 +10,24 @@ interface ProductCardProps {
 }
 
 const ProductCard = ({ product }: ProductCardProps) => {
-  const { addToCart, addToWishlist, wishlist } = useApp();
+  const { addToCart, addToWishlist, wishlist, user } = useApp();
   const navigate = useNavigate();
   const isWishlisted = wishlist.some(item => item.product.id === product.id);
-  
+
+  const handleAddToCart = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+
+    try {
+      await addToCart(product, 1);
+    } catch (error) {
+      console.error('Error adding to cart:', error);
+    }
+  };
 
   return (
     <motion.div
@@ -29,20 +43,7 @@ const ProductCard = ({ product }: ProductCardProps) => {
           alt={product.name}
           className="w-full h-full object-cover"
         />
-        {/* <motion.button
-          whileTap={{ scale: 0.9 }}
-          onClick={(e) => {
-            e.stopPropagation();
-            addToWishlist(product);
-          }}
-          className={`absolute top-3 right-3 p-2 rounded-full backdrop-blur-md ${
-            isWishlisted 
-              ? 'bg-destructive/90 text-destructive-foreground' 
-              : 'bg-card/90 text-foreground'
-          } shadow-lg`}
-        >
-          <Heart className={`h-4 w-4 ${isWishlisted ? 'fill-current' : ''}`} />
-        </motion.button> */}
+        
         {product.stock < 50 && (
           <div className="absolute top-3 left-3 px-3 py-1 bg-warning text-warning-foreground text-xs font-semibold rounded-full">
             Low Stock
@@ -57,38 +58,23 @@ const ProductCard = ({ product }: ProductCardProps) => {
         </div>
         
         <div className="flex flex-col">
-  <span className="text-2xl font-bold text-primary">
-    ₹{product.price.toFixed(2)}
-  </span>
-  <span className="text-sm text-muted-foreground">
-    {product.unit}
-  </span>
-</div>
-
+          <span className="text-2xl font-bold text-primary">
+            ₹{product.price.toFixed(2)}
+          </span>
+          <span className="text-sm text-muted-foreground">
+            {product.unit}
+          </span>
+        </div>
 
         <div className="flex gap-2">
           <Button
-            onClick={(e) => {
-              e.stopPropagation();
-              addToCart(product, 1);
-            }}
+            onClick={handleAddToCart}
             className="flex-1"
             variant="default"
           >
             <ShoppingCart className="h-4 w-4 mr-1" />
             Add to Cart
           </Button>
-          {/* <Button
-            onClick={(e) => {
-              e.stopPropagation();
-              navigate('/checkout', { state: { directBuy: [{ product, quantity: 1 }] } });
-            }}
-            variant="secondary"
-            className="flex-1"
-          >
-            <Zap className="h-4 w-4 mr-1" />
-            Buy
-          </Button> */}
         </div>
       </div>
     </motion.div>

@@ -1,8 +1,8 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
-import { Product, CartItem, WishlistItem, Order } from '@/types';
+import { Product, CartItem, WishlistItem, Order, CreditPeriod } from '@/types';
 import { toast } from 'sonner';
+import { baseurl } from '@/Api/Baseurl';
 
-// Updated User interface to match your API response
 export interface User {
   id: string;
   name: string;
@@ -27,23 +27,32 @@ interface AppContextType {
   orders: Order[];
   isAuthenticated: boolean;
   user: User | null;
+  creditPeriods: CreditPeriod[];
+  loading: boolean;
 
-  addToCart: (product: Product, quantity: number) => void;
-  removeFromCart: (productId: string) => void;
-  updateCartQuantity: (productId: string, quantity: number) => void;
+  // Cart operations
+  addToCart: (product: Product, quantity: number) => Promise<void>;
+  removeFromCart: (productId: string) => Promise<void>;
+  updateCartQuantity: (productId: string, quantity: number) => Promise<void>;
+  updateItemCreditPeriod: (productId: string, period: string, percentage?: number) => Promise<void>;
+  syncCartWithBackend: () => Promise<void>;
+  clearCart: () => Promise<void>;
 
-  updateItemCreditPeriod: (productId: string, period: string) => void;
-
+  // Wishlist operations
   addToWishlist: (product: Product) => void;
   removeFromWishlist: (productId: string) => void;
   moveToCart: (productId: string) => void;
 
+  // Order operations
   placeOrder: (items: CartItem[], address: any) => string;
-  clearCart: () => void;
 
+  // Auth operations
   login: (userData: User) => boolean;
-  signup: (data: any) => boolean;
+  signup: (userData: User) => boolean;
   logout: () => void;
+
+  // Credit periods
+  fetchCreditPeriods: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -54,116 +63,337 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState<User | null>(null);
+  const [creditPeriods, setCreditPeriods] = useState<CreditPeriod[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  // --------------------------------------
-  // Load saved data from LocalStorage on mount
-  // --------------------------------------
+  // Load initial data
   useEffect(() => {
-    const savedCart = localStorage.getItem("appCart");
-    if (savedCart) setCart(JSON.parse(savedCart));
+    const loadInitialData = async () => {
+      const savedUser = localStorage.getItem("appUser");
+      if (savedUser) {
+        const userData = JSON.parse(savedUser);
+        setUser(userData);
+        setIsAuthenticated(true);
+        // Load user's cart from backend
+        await syncCartWithBackend();
+      }
 
-    const savedUser = localStorage.getItem("appUser");
-    if (savedUser) {
-      const userData = JSON.parse(savedUser);
-      setUser(userData);
-      setIsAuthenticated(true);
-    }
+      const savedWishlist = localStorage.getItem("appWishlist");
+      if (savedWishlist) setWishlist(JSON.parse(savedWishlist));
 
-    const savedWishlist = localStorage.getItem("appWishlist");
-    if (savedWishlist) setWishlist(JSON.parse(savedWishlist));
+      // Load credit periods
+      await fetchCreditPeriods();
+    };
+
+    loadInitialData();
   }, []);
 
-  const saveCart = (newCart: CartItem[]) => {
-    setCart(newCart);
-    localStorage.setItem("appCart", JSON.stringify(newCart));
+  // Fetch credit periods from API
+  const fetchCreditPeriods = async (): Promise<void> => {
+    try {
+      const response = await fetch(`${baseurl}/api/credit-period-fix/credit`);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const result = await response.json();
+      
+      if (result.success && result.data) {
+        const transformedPeriods = result.data.map((period: any) => ({
+          days: parseInt(period.credit_period),
+          percentage: parseInt(period.credit_percentage),
+          multiplier: 1 + (parseInt(period.credit_percentage) / 100)
+        }));
+        
+        setCreditPeriods(transformedPeriods);
+      } else {
+        // Fallback to default periods
+        setCreditPeriods(getDefaultCreditPeriods());
+      }
+    } catch (error) {
+      console.error('Error fetching credit periods:', error);
+      setCreditPeriods(getDefaultCreditPeriods());
+    }
   };
 
+  const getDefaultCreditPeriods = (): CreditPeriod[] => {
+    return [
+      { days: 0, multiplier: 1.00, percentage: 0 },
+      { days: 3, multiplier: 1.04, percentage: 4 },
+      { days: 8, multiplier: 1.08, percentage: 8 },
+      { days: 15, multiplier: 1.12, percentage: 12 },
+      { days: 30, multiplier: 1.15, percentage: 15 }
+    ];
+  };
+
+  // Enhanced sync cart with backend
+  const syncCartWithBackend = async (): Promise<void> => {
+    if (!user) return;
+
+    try {
+      setLoading(true);
+      const response = await fetch(`${baseurl}/api/cart/customer-cart/${user.id}`);
+      if (!response.ok) throw new Error('Failed to fetch cart');
+      
+      const cartItems = await response.json();
+      
+      // Transform backend cart items to frontend format
+      const transformedCart = await Promise.all(
+        cartItems.map(async (item: any) => {
+          try {
+            // Fetch product details
+            const productResponse = await fetch(`${baseurl}/products/${item.product_id}`);
+            if (!productResponse.ok) throw new Error('Failed to fetch product');
+            const productData = await productResponse.json();
+            
+            return {
+              id: item.id,
+              product: {
+                id: productData.id.toString(),
+                name: productData.name,
+                description: productData.description,
+                price: parseFloat(productData.price),
+                unit: productData.unit,
+                image: productData.image,
+                category: productData.category,
+                supplier: productData.supplier,
+                stock: productData.stock
+              },
+              quantity: item.quantity,
+              creditPeriod: item.credit_period?.toString() || "0",
+              priceMultiplier: 1 + ((item.credit_percentage || 0) / 100),
+              creditPercentage: item.credit_percentage || 0
+            };
+          } catch (error) {
+            console.error('Error processing cart item:', error);
+            return null;
+          }
+        })
+      );
+      
+      // Filter out any failed items and update cart
+      const validCartItems = transformedCart.filter(item => item !== null) as CartItem[];
+      setCart(validCartItems);
+    } catch (error) {
+      console.error('Error syncing cart:', error);
+      toast.error('Failed to load cart');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Add to Cart with backend sync
+  const addToCart = async (product: Product, quantity: number): Promise<void> => {
+    if (!user) {
+      toast.error('Please login to add items to cart');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const existingItem = cart.find(item => item.product.id === product.id);
+
+      if (existingItem) {
+        await updateCartQuantity(product.id, existingItem.quantity + quantity);
+        return;
+      }
+
+      // Add to backend
+      const response = await fetch(`${baseurl}/api/cart/add-to-cart`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          customer_id: user.id,
+          product_id: parseInt(product.id),
+          quantity: quantity,
+          credit_period: 0,
+          credit_percentage: 0
+        })
+      });
+
+      if (!response.ok) throw new Error('Failed to add to cart');
+
+      // Sync with backend to get the updated cart
+      await syncCartWithBackend();
+      toast.success(`${product.name} added to cart!`);
+      
+    } catch (error) {
+      console.error('Error adding to cart:', error);
+      toast.error('Failed to add item to cart');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Remove from Cart with backend sync
+  const removeFromCart = async (productId: string): Promise<void> => {
+    if (!user) return;
+
+    try {
+      setLoading(true);
+      const itemToRemove = cart.find(item => item.product.id === productId);
+      if (!itemToRemove) return;
+
+      // Remove from backend if it has an ID (from database)
+      if (itemToRemove.id) {
+        const response = await fetch(`${baseurl}/api/cart/remove-cart-item/${itemToRemove.id}`, {
+          method: 'DELETE'
+        });
+
+        if (!response.ok) throw new Error('Failed to remove from cart');
+      }
+
+      // Update local state immediately for better UX
+      const newCart = cart.filter(item => item.product.id !== productId);
+      setCart(newCart);
+      
+      toast.info("Item removed from cart");
+      
+    } catch (error) {
+      console.error('Error removing from cart:', error);
+      toast.error('Failed to remove item from cart');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Update Quantity with backend sync
+  const updateCartQuantity = async (productId: string, quantity: number): Promise<void> => {
+    if (!user) return;
+
+    if (quantity <= 0) {
+      await removeFromCart(productId);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const itemToUpdate = cart.find(item => item.product.id === productId);
+      if (!itemToUpdate) return;
+
+      // Update in backend if it has an ID
+      if (itemToUpdate.id) {
+        const response = await fetch(`${baseurl}/api/cart/update-cart-quantity/${itemToUpdate.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ quantity })
+        });
+
+        if (!response.ok) throw new Error('Failed to update quantity');
+      }
+
+      // Update local state immediately for better UX
+      const newCart = cart.map(item =>
+        item.product.id === productId ? { ...item, quantity } : item
+      );
+
+      setCart(newCart);
+      
+    } catch (error) {
+      console.error('Error updating quantity:', error);
+      toast.error('Failed to update quantity');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Update Credit Period with backend sync
+  const updateItemCreditPeriod = async (productId: string, period: string, percentage?: number): Promise<void> => {
+    if (!user) return;
+
+    try {
+      setLoading(true);
+      const itemToUpdate = cart.find(item => item.product.id === productId);
+      if (!itemToUpdate) return;
+
+      let actualPercentage = percentage;
+      let multiplier = 1;
+
+      // Calculate multiplier based on percentage or period
+      if (percentage !== undefined) {
+        multiplier = 1 + (percentage / 100);
+      } else {
+        const creditPeriod = creditPeriods.find(cp => cp.days === parseInt(period));
+        multiplier = creditPeriod ? creditPeriod.multiplier : 1;
+        actualPercentage = creditPeriod ? creditPeriod.percentage : 0;
+      }
+
+      // Update in backend if it has an ID
+      if (itemToUpdate.id) {
+        const response = await fetch(`${baseurl}/api/cart/update-cart-credit/${itemToUpdate.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            credit_period: parseInt(period),
+            credit_percentage: actualPercentage
+          })
+        });
+
+        if (!response.ok) throw new Error('Failed to update credit period');
+      }
+
+      // Update local state immediately for better UX
+      const newCart = cart.map(item =>
+        item.product.id === productId
+          ? { 
+              ...item, 
+              creditPeriod: period, 
+              priceMultiplier: multiplier,
+              creditPercentage: actualPercentage
+            }
+          : item
+      );
+
+      setCart(newCart);
+
+      toast.success(`Credit set to ${period} days (+${actualPercentage}%)`);
+      
+    } catch (error) {
+      console.error('Error updating credit period:', error);
+      toast.error('Failed to update credit period');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Clear Cart with backend sync
+  const clearCart = async (): Promise<void> => {
+    if (!user) return;
+
+    try {
+      setLoading(true);
+      // Remove all items from backend
+      for (const item of cart) {
+        if (item.id) {
+          await fetch(`${baseurl}/api/cart/remove-cart-item/${item.id}`, {
+            method: 'DELETE'
+          });
+        }
+      }
+
+      // Clear local state
+      setCart([]);
+    } catch (error) {
+      console.error('Error clearing cart:', error);
+      toast.error('Failed to clear cart');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Wishlist operations (local only)
   const saveWishlist = (newWishlist: WishlistItem[]) => {
     setWishlist(newWishlist);
     localStorage.setItem("appWishlist", JSON.stringify(newWishlist));
   };
 
-  const saveUser = (userData: User | null) => {
-    setUser(userData);
-    if (userData) {
-      localStorage.setItem("appUser", JSON.stringify(userData));
-    } else {
-      localStorage.removeItem("appUser");
-    }
-  };
-
-  // --------------------------------------
-  // Add to Cart
-  // --------------------------------------
-  const addToCart = (product: Product, quantity: number) => {
-    const existing = cart.find(item => item.product.id === product.id);
-
-    if (existing) {
-      updateCartQuantity(product.id, existing.quantity + quantity);
-    } else {
-      const newItem: CartItem = {
-        product,
-        quantity,
-        creditPeriod: "0",
-        priceMultiplier: 1.00
-      };
-      saveCart([...cart, newItem]);
-      toast.success(`${product.name} added to cart!`);
-    }
-  };
-
-  // --------------------------------------
-  // Remove from Cart
-  // --------------------------------------
-  const removeFromCart = (productId: string) => {
-    const newCart = cart.filter(item => item.product.id !== productId);
-    saveCart(newCart);
-    toast.info("Item removed from cart");
-  };
-
-  // --------------------------------------
-  // Update Quantity
-  // --------------------------------------
-  const updateCartQuantity = (productId: string, quantity: number) => {
-    if (quantity <= 0) return removeFromCart(productId);
-
-    const newCart = cart.map(item =>
-      item.product.id === productId ? { ...item, quantity } : item
-    );
-
-    saveCart(newCart);
-  };
-
-  // --------------------------------------
-  // Update Credit Period per product
-  // --------------------------------------
-  const updateItemCreditPeriod = (productId: string, period: string) => {
-    let multiplier = 1;
-
-    switch (period) {
-      case "3": multiplier = 1.04; break;
-      case "8": multiplier = 1.08; break;
-      case "15": multiplier = 1.12; break;
-      case "30": multiplier = 1.15; break;
-      default: multiplier = 1.00;
-    }
-
-    const newCart = cart.map(item =>
-      item.product.id === productId
-        ? { ...item, creditPeriod: period, priceMultiplier: multiplier }
-        : item
-    );
-
-    saveCart(newCart);
-
-    toast.success(
-      `Credit set to ${period} days (+${((multiplier - 1) * 100).toFixed(0)}%)`
-    );
-  };
-
-  // --------------------------------------
-  // Wishlist Operations
-  // --------------------------------------
   const addToWishlist = (product: Product) => {
     if (!wishlist.some(w => w.product.id === product.id)) {
       const newWishlist = [...wishlist, { product }];
@@ -186,9 +416,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  // --------------------------------------
   // Place Order
-  // --------------------------------------
   const placeOrder = (items: CartItem[], address: any): string => {
     const orderId = `ORD${Date.now()}`;
 
@@ -213,17 +441,21 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     return orderId;
   };
 
-  const clearCart = () => {
-    saveCart([]);
+  // Auth operations
+  const saveUser = (userData: User | null) => {
+    setUser(userData);
+    if (userData) {
+      localStorage.setItem("appUser", JSON.stringify(userData));
+    } else {
+      localStorage.removeItem("appUser");
+    }
   };
 
-  // --------------------------------------
-  // Auth - Updated for API integration
-  // --------------------------------------
   const login = (userData: User): boolean => {
     try {
       setIsAuthenticated(true);
       saveUser(userData);
+      syncCartWithBackend(); // Sync cart after login
       toast.success(`Welcome back, ${userData.name || userData.business_name || userData.email}!`);
       return true;
     } catch (error) {
@@ -262,23 +494,27 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         orders,
         isAuthenticated,
         user,
+        creditPeriods,
+        loading,
 
         addToCart,
         removeFromCart,
         updateCartQuantity,
-
         updateItemCreditPeriod,
+        syncCartWithBackend,
+        clearCart,
 
         addToWishlist,
         removeFromWishlist,
         moveToCart,
 
         placeOrder,
-        clearCart,
 
         login,
         signup,
-        logout
+        logout,
+
+        fetchCreditPeriods
       }}
     >
       {children}

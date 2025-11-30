@@ -18,14 +18,14 @@ export interface Category {
 }
 
 export interface CartItem {
+  id?: number; // Database ID
   product: Product;
   quantity: number;
- 
-
-  // ✅ Add these two new fields
-  priceMultiplier: number;
   creditPeriod: string;
+  priceMultiplier: number;
+  creditPercentage?: number;
 }
+
 
 export interface WishlistItem {
   product: Product;
@@ -46,4 +46,11 @@ export interface Order {
   status: 'ordered' | 'packed' | 'shipped' | 'out_for_delivery' | 'delivered';
   date: string;
   estimatedDelivery: string;
+}
+
+
+export interface CreditPeriod {
+  days: number;
+  percentage: number;
+  multiplier: number;
 }
