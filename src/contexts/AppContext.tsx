@@ -184,49 +184,52 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   };
 
   // Add to Cart with backend sync
-  const addToCart = async (product: Product, quantity: number): Promise<void> => {
-    if (!user) {
-      toast.error('Please login to add items to cart');
+// Add to Cart with backend sync
+const addToCart = async (product: Product, quantity: number): Promise<void> => {
+  if (!user) {
+    toast.error('Please login to add items to cart');
+    return;
+  }
+
+  try {
+    setLoading(true);
+    const existingItem = cart.find(item => item.product.id === product.id);
+
+    if (existingItem) {
+      // Show notification for existing item
+      toast.success(`${product.name} quantity updated in cart!`);
+      await updateCartQuantity(product.id, existingItem.quantity + quantity);
       return;
     }
 
-    try {
-      setLoading(true);
-      const existingItem = cart.find(item => item.product.id === product.id);
+    // Add to backend
+    const response = await fetch(`${baseurl}/api/cart/add-to-cart`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        customer_id: user.id,
+        product_id: parseInt(product.id),
+        quantity: quantity,
+        credit_period: 0,
+        credit_percentage: 0
+      })
+    });
 
-      if (existingItem) {
-        await updateCartQuantity(product.id, existingItem.quantity + quantity);
-        return;
-      }
+    if (!response.ok) throw new Error('Failed to add to cart');
 
-      // Add to backend
-      const response = await fetch(`${baseurl}/api/cart/add-to-cart`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          customer_id: user.id,
-          product_id: parseInt(product.id),
-          quantity: quantity,
-          credit_period: 0,
-          credit_percentage: 0
-        })
-      });
-
-      if (!response.ok) throw new Error('Failed to add to cart');
-
-      // Sync with backend to get the updated cart
-      await syncCartWithBackend();
-      toast.success(`${product.name} added to cart!`);
-      
-    } catch (error) {
-      console.error('Error adding to cart:', error);
-      toast.error('Failed to add item to cart');
-    } finally {
-      setLoading(false);
-    }
-  };
+    // Sync with backend to get the updated cart
+    await syncCartWithBackend();
+    toast.success(`${product.name} added to cart!`);
+    
+  } catch (error) {
+    console.error('Error adding to cart:', error);
+    toast.error('Failed to add item to cart');
+  } finally {
+    setLoading(false);
+  }
+};
 
   // Remove from Cart with backend sync
   const removeFromCart = async (productId: string): Promise<void> => {
@@ -261,46 +264,51 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   };
 
   // Update Quantity with backend sync
-  const updateCartQuantity = async (productId: string, quantity: number): Promise<void> => {
-    if (!user) return;
+// Update Quantity with backend sync
+const updateCartQuantity = async (productId: string, quantity: number): Promise<void> => {
+  if (!user) return;
 
-    if (quantity <= 0) {
-      await removeFromCart(productId);
-      return;
+  if (quantity <= 0) {
+    await removeFromCart(productId);
+    return;
+  }
+
+  try {
+    setLoading(true);
+    const itemToUpdate = cart.find(item => item.product.id === productId);
+    if (!itemToUpdate) return;
+
+    // Update in backend if it has an ID
+    if (itemToUpdate.id) {
+      const response = await fetch(`${baseurl}/api/cart/update-cart-quantity/${itemToUpdate.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ quantity })
+      });
+
+      if (!response.ok) throw new Error('Failed to update quantity');
     }
 
-    try {
-      setLoading(true);
-      const itemToUpdate = cart.find(item => item.product.id === productId);
-      if (!itemToUpdate) return;
+    // Update local state immediately for better UX
+    const newCart = cart.map(item =>
+      item.product.id === productId ? { ...item, quantity } : item
+    );
 
-      // Update in backend if it has an ID
-      if (itemToUpdate.id) {
-        const response = await fetch(`${baseurl}/api/cart/update-cart-quantity/${itemToUpdate.id}`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ quantity })
-        });
-
-        if (!response.ok) throw new Error('Failed to update quantity');
-      }
-
-      // Update local state immediately for better UX
-      const newCart = cart.map(item =>
-        item.product.id === productId ? { ...item, quantity } : item
-      );
-
-      setCart(newCart);
-      
-    } catch (error) {
-      console.error('Error updating quantity:', error);
-      toast.error('Failed to update quantity');
-    } finally {
-      setLoading(false);
-    }
-  };
+    setCart(newCart);
+    
+    // Show notification for quantity update (optional)
+    const product = itemToUpdate.product;
+    toast.success(`${product.name} quantity updated to ${quantity}`);
+    
+  } catch (error) {
+    console.error('Error updating quantity:', error);
+    toast.error('Failed to update quantity');
+  } finally {
+    setLoading(false);
+  }
+};
 
   // Update Credit Period with backend sync
   const updateItemCreditPeriod = async (productId: string, period: string, percentage?: number): Promise<void> => {
