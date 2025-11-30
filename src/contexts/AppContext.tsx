@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, ReactNode, useEffect } from
 import { Product, CartItem, WishlistItem, Order, CreditPeriod } from '@/types';
 import { toast } from 'sonner';
 import { baseurl } from '@/Api/Baseurl';
+import flourImage from '@/assets/flour-product.jpg';
 
 export interface User {
   id: string;
@@ -109,23 +110,14 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         setCreditPeriods(transformedPeriods);
       } else {
         // Fallback to default periods
-        setCreditPeriods(getDefaultCreditPeriods());
+       
       }
     } catch (error) {
-      console.error('Error fetching credit periods:', error);
-      setCreditPeriods(getDefaultCreditPeriods());
+ 
     }
   };
 
-  const getDefaultCreditPeriods = (): CreditPeriod[] => {
-    return [
-      { days: 0, multiplier: 1.00, percentage: 0 },
-      { days: 3, multiplier: 1.04, percentage: 4 },
-      { days: 8, multiplier: 1.08, percentage: 8 },
-      { days: 15, multiplier: 1.12, percentage: 12 },
-      { days: 30, multiplier: 1.15, percentage: 15 }
-    ];
-  };
+
 
   // Enhanced sync cart with backend
   const syncCartWithBackend = async (): Promise<void> => {
@@ -151,11 +143,11 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
               id: item.id,
               product: {
                 id: productData.id.toString(),
-                name: productData.name,
+                name: productData.goods_name,
                 description: productData.description,
                 price: parseFloat(productData.price),
                 unit: productData.unit,
-                image: productData.image,
+                image: productData.image || flourImage,
                 category: productData.category,
                 supplier: productData.supplier,
                 stock: productData.stock

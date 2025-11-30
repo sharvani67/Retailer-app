@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, MapPin } from 'lucide-react';
+import { ArrowLeft, MapPin, CreditCard, Tag } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -11,42 +11,77 @@ import TabBar from '@/components/TabBar';
 const Checkout = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { cart, placeOrder,user } = useApp();
+  const { cart, placeOrder, user } = useApp();
+  
+  // Get checkout data from location state or use cart
+  const checkoutData = location.state;
   const directBuyItems = location.state?.directBuy;
   const items = directBuyItems || cart;
+  
+  // Use credit breakdown from location state or calculate from cart
+  const creditBreakdown = checkoutData?.creditBreakdown || calculateCreditBreakdown(items);
+  
+  // Calculate user discount
+  const userDiscountDecimal = user?.discount ? parseFloat(user.discount) : 0;
+  const userDiscountPercentage = userDiscountDecimal * 100;
 
   // Address
-const [address, setAddress] = useState({
-  name: user?.name || "",
-  businessName: user?.business_name || "",
-  phone: user?.mobile_number || "",
-  addressLine: 
-    `${user?.shipping_address_line1 || ""}, ` +
-    `${user?.shipping_address_line2 || ""}, ` +
-    `${user?.shipping_city || ""}, ` +
-    `${user?.shipping_state || ""} - ` +
-    `${user?.shipping_pin_code || ""}, ` +
-    `${user?.shipping_country || ""}`,
-  city: user?.shipping_city || "",
-  pincode: user?.shipping_pin_code || "",
-});
+  const [address, setAddress] = useState({
+    name: user?.name || "",
+    businessName: user?.business_name || "",
+    phone: user?.mobile_number || "",
+    addressLine: 
+      `${user?.shipping_address_line1 || ""}, ` +
+      `${user?.shipping_address_line2 || ""}, ` +
+      `${user?.shipping_city || ""}, ` +
+      `${user?.shipping_state || ""} - ` +
+      `${user?.shipping_pin_code || ""}, ` +
+      `${user?.shipping_country || ""}`,
+    city: user?.shipping_city || "",
+    pincode: user?.shipping_pin_code || "",
+  });
 
+  // Helper function to calculate credit breakdown from items
+  function calculateCreditBreakdown(items: any[]) {
+    const subtotal = items.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
+    
+    const totalCreditCharges = items.reduce((sum, item) => {
+      const multiplier = item.priceMultiplier || 1;
+      const baseTotal = item.product.price * item.quantity;
+      const creditTotal = baseTotal * multiplier;
+      return sum + (creditTotal - baseTotal);
+    }, 0);
+
+    const totalDiscount = items.reduce((sum, item) => {
+      if (userDiscountDecimal <= 0) return 0;
+      const multiplier = item.priceMultiplier || 1;
+      const baseTotal = item.product.price * item.quantity * multiplier;
+      return sum + (baseTotal * userDiscountDecimal);
+    }, 0);
+
+    const finalTotal = subtotal + totalCreditCharges - totalDiscount;
+
+    return {
+      subtotal,
+      totalCreditCharges,
+      totalDiscount,
+      userDiscount: userDiscountPercentage,
+      finalTotal
+    };
+  }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setAddress({ ...address, [e.target.id]: e.target.value });
   };
 
-  // 🧾 Base calculations
-  const total = items.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
-  
-  const baseTotal = total ;
-
-  const finalTotal = baseTotal;
-
   const handlePlaceOrder = () => {
     const orderId = placeOrder(items, address);
     navigate('/order-confirmation', {
-      state: { orderId, total: finalTotal },
+      state: { 
+        orderId, 
+        total: creditBreakdown.finalTotal,
+        creditBreakdown 
+      },
     });
   };
 
@@ -85,6 +120,8 @@ const [address, setAddress] = useState({
                 <Label htmlFor={field}>
                   {field === 'addressLine'
                     ? 'Complete Address'
+                    : field === 'businessName'
+                    ? 'Business Name'
                     : field.charAt(0).toUpperCase() + field.slice(1)}
                 </Label>
                 <Input
@@ -99,7 +136,7 @@ const [address, setAddress] = useState({
           </div>
         </motion.div>
 
-        {/* Order Summary */}
+        {/* Order Summary with Credit Charges and Discount */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -108,30 +145,93 @@ const [address, setAddress] = useState({
         >
           <h2 className="text-lg font-semibold mb-4">Order Summary</h2>
 
-          <div className="space-y-3 mb-4">
-            {items.map((item) => (
-              <div key={item.product.id} className="flex justify-between text-sm">
-                <span className="text-muted-foreground">
-                  {item.product.name} × {item.quantity}
-                </span>
-                <span className="font-semibold">
-                  ₹{(item.product.price * item.quantity).toLocaleString()}
-                </span>
-              </div>
-            ))}
-          </div>
+          {/* Items List */}
+          {/* <div className="space-y-3 mb-4">
+            {items.map((item) => {
+              const itemMultiplier = item.priceMultiplier || 1;
+              const itemBaseTotal = item.product.price * item.quantity;
+              const itemCreditCharge = itemBaseTotal * itemMultiplier - itemBaseTotal;
+              const itemDiscount = userDiscountDecimal > 0 ? (itemBaseTotal * itemMultiplier) * userDiscountDecimal : 0;
+              const itemFinalTotal = (itemBaseTotal * itemMultiplier) - itemDiscount;
 
-          <div className="border-t border-border pt-3 space-y-2">
+              return (
+                <div key={item.product.id} className="space-y-2 pb-3 border-b border-border last:border-b-0">
+                  <div className="flex justify-between">
+                    <span className="font-medium text-sm">
+                      {item.product.name} × {item.quantity}
+                    </span>
+                    <span className="font-semibold text-sm">
+                      ₹{itemFinalTotal.toLocaleString()}
+                    </span>
+                  </div>
+                  
+                  
+                  <div className="space-y-1 text-xs text-muted-foreground pl-2">
+                    <div className="flex justify-between">
+                      <span>Base price</span>
+                      <span>₹{itemBaseTotal.toLocaleString()}</span>
+                    </div>
+                    
+                    {item.creditPeriod !== "0" && item.creditPeriod && (
+                      <div className="flex justify-between">
+                        <span>Credit charges ({item.creditPercentage || 0}%)</span>
+                        <span className="text-orange-500">+₹{itemCreditCharge.toLocaleString()}</span>
+                      </div>
+                    )}
+                    
+                    {userDiscountDecimal > 0 && (
+                      <div className="flex justify-between">
+                        <span>Discount ({userDiscountPercentage}%)</span>
+                        <span className="text-green-600">-₹{itemDiscount.toLocaleString()}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div> */}
+
+          {/* Order Total Breakdown */}
+          <div className="border-t border-border pt-4 space-y-3">
             <div className="flex justify-between text-muted-foreground">
-              <span>Subtotal</span>
-              <span>₹{total.toLocaleString()}</span>
+              <span>Subtotal ({items.length} items)</span>
+              <span>₹{creditBreakdown.subtotal.toLocaleString()}</span>
             </div>
-          
-            
-            <div className="flex justify-between text-xl font-bold pt-2">
-              <span>Total</span>
-              <span className="text-primary">₹{finalTotal.toLocaleString()}</span>
+
+            {/* Credit Charges */}
+            {creditBreakdown.totalCreditCharges > 0 && (
+              <div className="flex justify-between text-muted-foreground">
+                <div className="flex items-center gap-2">
+                  <CreditCard className="h-4 w-4 text-orange-500" />
+                  <span>Total Credit Charges</span>
+                </div>
+                <span className="text-orange-500">+₹{creditBreakdown.totalCreditCharges.toLocaleString()}</span>
+              </div>
+            )}
+
+            {/* Discount */}
+            {creditBreakdown.totalDiscount > 0 && (
+              <div className="flex justify-between text-green-600">
+                <div className="flex items-center gap-2">
+                  <Tag className="h-4 w-4" />
+                  <span>Your Discount ({creditBreakdown.userDiscount}%)</span>
+                </div>
+                <span className="font-semibold">-₹{creditBreakdown.totalDiscount.toLocaleString()}</span>
+              </div>
+            )}
+
+            {/* Final Total */}
+            <div className="border-t border-border pt-3 flex justify-between text-xl font-bold">
+              <span>Final Total</span>
+              <span className="text-primary">₹{creditBreakdown.finalTotal.toLocaleString()}</span>
             </div>
+
+            {/* Savings Message */}
+            {creditBreakdown.totalDiscount > 0 && (
+              <div className="text-xs text-muted-foreground text-center pt-2 bg-green-50 rounded-lg p-2">
+                🎉 You saved ₹{creditBreakdown.totalDiscount.toLocaleString()} with your {creditBreakdown.userDiscount}% discount!
+              </div>
+            )}
           </div>
         </motion.div>
 
@@ -153,7 +253,7 @@ const [address, setAddress] = useState({
               !address.pincode
             }
           >
-            Place Order - ₹{finalTotal.toLocaleString()}
+            Place Order - ₹{creditBreakdown.finalTotal.toLocaleString()}
           </Button>
         </motion.div>
       </main>
