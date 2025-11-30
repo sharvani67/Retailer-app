@@ -7,11 +7,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useApp } from '@/contexts/AppContext';
 import TabBar from '@/components/TabBar';
+import { baseurl } from '@/Api/Baseurl';
 
 const Checkout = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { cart, placeOrder, user } = useApp();
+  const { cart, placeOrder, user, clearCart } = useApp();
   
   // Get checkout data from location state or use cart
   const checkoutData = location.state;
@@ -74,15 +75,96 @@ const Checkout = () => {
     setAddress({ ...address, [e.target.id]: e.target.value });
   };
 
-  const handlePlaceOrder = () => {
-    const orderId = placeOrder(items, address);
-    navigate('/order-confirmation', {
-      state: { 
-        orderId, 
-        total: creditBreakdown.finalTotal,
-        creditBreakdown 
-      },
-    });
+  // Enhanced place order function to work with backend
+  const handlePlaceOrder = async () => {
+    if (!user) {
+      alert('Please login to place an order');
+      return;
+    }
+
+    try {
+      // Create order data for backend
+      const orderData = {
+        order_number: `ORD${Date.now()}`,
+        customer_id: user.id,
+        customer_name: address.name,
+        order_total: creditBreakdown.finalTotal,
+        discount_amount: creditBreakdown.totalDiscount,
+        taxable_amount: creditBreakdown.subtotal,
+        tax_amount: 0, // You can calculate tax if needed
+        net_payable: creditBreakdown.finalTotal,
+        credit_period: calculateAverageCreditPeriod(items),
+        estimated_delivery_date: new Date(Date.now() + 5 * 86400000).toISOString().split('T')[0],
+        order_placed_by: user.id, // FIX: Use user ID instead of name
+        order_mode: 'online',
+        invoice_number: `INV${Date.now()}`,
+        invoice_date: new Date().toISOString().split('T')[0]
+      };
+
+      // First create the main order
+      const orderResponse = await fetch(`${baseurl}/orders/create-complete-order`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          order: orderData,
+          orderItems: items.map(item => ({
+            product_id: parseInt(item.product.id),
+            item_name: item.product.name,
+            mrp: item.product.price,
+            sale_price: item.product.price,
+            price: item.product.price * (item.priceMultiplier || 1),
+            quantity: item.quantity,
+            total_amount: (item.product.price * item.quantity * (item.priceMultiplier || 1)) - (item.product.price * item.quantity * (item.priceMultiplier || 1) * userDiscountDecimal),
+            discount_percentage: userDiscountPercentage,
+            discount_amount: item.product.price * item.quantity * (item.priceMultiplier || 1) * userDiscountDecimal,
+            taxable_amount: item.product.price * item.quantity,
+            tax_percentage: 0,
+            tax_amount: 0,
+            item_total: (item.product.price * item.quantity * (item.priceMultiplier || 1)) - (item.product.price * item.quantity * (item.priceMultiplier || 1) * userDiscountDecimal),
+            credit_period: parseInt(item.creditPeriod) || 0,
+            credit_percentage: item.creditPercentage || 0,
+            sgst_percentage: 0,
+            sgst_amount: 0,
+            cgst_percentage: 0,
+            cgst_amount: 0,
+            discount_applied_scheme: userDiscountPercentage > 0 ? 'user_discount' : 'none'
+          }))
+        })
+      });
+
+      if (!orderResponse.ok) {
+        const errorData = await orderResponse.json();
+        throw new Error(errorData.message || 'Failed to create order');
+      }
+
+      const orderResult = await orderResponse.json();
+      
+      // Clear cart after successful order
+      if (!directBuyItems) {
+        await clearCart();
+      }
+
+      // Navigate to confirmation page
+      navigate('/order-confirmation', {
+        state: { 
+          orderId: orderResult.order_number || orderData.order_number, 
+          total: creditBreakdown.finalTotal,
+          creditBreakdown 
+        },
+      });
+
+    } catch (error) {
+      console.error('Error placing order:', error);
+      alert('Failed to place order. Please try again.');
+    }
+  };
+
+  // Helper function to calculate average credit period
+  const calculateAverageCreditPeriod = (items: any[]) => {
+    const totalPeriod = items.reduce((sum, item) => sum + (parseInt(item.creditPeriod) || 0), 0);
+    return items.length > 0 ? Math.round(totalPeriod / items.length) : 0;
   };
 
   return (
@@ -146,7 +228,7 @@ const Checkout = () => {
           <h2 className="text-lg font-semibold mb-4">Order Summary</h2>
 
           {/* Items List */}
-          {/* <div className="space-y-3 mb-4">
+          <div className="space-y-3 mb-4">
             {items.map((item) => {
               const itemMultiplier = item.priceMultiplier || 1;
               const itemBaseTotal = item.product.price * item.quantity;
@@ -164,7 +246,6 @@ const Checkout = () => {
                       ₹{itemFinalTotal.toLocaleString()}
                     </span>
                   </div>
-                  
                   
                   <div className="space-y-1 text-xs text-muted-foreground pl-2">
                     <div className="flex justify-between">
@@ -189,7 +270,7 @@ const Checkout = () => {
                 </div>
               );
             })}
-          </div> */}
+          </div>
 
           {/* Order Total Breakdown */}
           <div className="border-t border-border pt-4 space-y-3">
@@ -250,7 +331,8 @@ const Checkout = () => {
               !address.phone ||
               !address.addressLine ||
               !address.city ||
-              !address.pincode
+              !address.pincode ||
+              items.length === 0
             }
           >
             Place Order - ₹{creditBreakdown.finalTotal.toLocaleString()}
