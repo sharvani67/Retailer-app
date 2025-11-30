@@ -9,7 +9,7 @@ const TabBar = () => {
 
   const tabs = [
     { icon: Home, label: 'Home', path: '/home' },
-    { icon: Heart, label: 'Wishlist', path: '/wishlist', badge: wishlist.length },
+    // { icon: Heart, label: 'Wishlist', path: '/wishlist', badge: wishlist.length },
     { icon: ShoppingCart, label: 'Cart', path: '/cart', badge: cart.length },
     { icon: Package, label: 'Orders', path: '/orders' },
     { icon: User, label: 'Profile', path: '/profile' },
@@ -46,7 +46,7 @@ const TabBar = () => {
                 {isActive && (
                   <motion.div
                     layoutId="activeTab"
-                    className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 w-8 h-1 bg-primary rounded-full"
+                    className="absolute bottom-0 -translate-x-1/2 w-8 h-1 bg-primary rounded-full"
                     transition={{ type: 'spring', stiffness: 500, damping: 30 }}
                   />
                 )}

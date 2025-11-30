@@ -27,13 +27,13 @@ const Profile = () => {
       onClick: () => navigate('/orders'),
       gradient: 'from-blue-500 to-indigo-500',
     },
-    {
-      icon: Heart,
-      label: 'My Wishlist',
-      value: wishlist.length,
-      onClick: () => navigate('/wishlist'),
-      gradient: 'from-pink-500 to-rose-500',
-    },
+    // {
+    //   icon: Heart,
+    //   label: 'My Wishlist',
+    //   value: wishlist.length,
+    //   onClick: () => navigate('/wishlist'),
+    //   gradient: 'from-pink-500 to-rose-500',
+    // },
   ];
 
   return (
