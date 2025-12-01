@@ -32,7 +32,7 @@ const Splash = () => {
         transition={{ delay: 0.5, duration: 0.6 }}
         className="text-center space-y-3"
       >
-        <h1 className="text-5xl font-bold text-white tracking-tight">BulkBuy</h1>
+        <h1 className="text-5xl font-bold text-white tracking-tight">RetailPro</h1>
         <p className="text-xl text-white/90 font-medium">Order Smart, Save More</p>
       </motion.div>
 

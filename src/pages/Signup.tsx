@@ -43,7 +43,7 @@ const Signup = () => {
               <Package className="h-8 w-8 text-secondary-foreground" />
             </div>
             <h1 className="text-3xl font-bold">Create Account</h1>
-            <p className="text-muted-foreground">Join BulkBuy today</p>
+            <p className="text-muted-foreground">Join RetailPro today</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
