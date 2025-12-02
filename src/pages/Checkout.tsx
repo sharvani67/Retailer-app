@@ -168,7 +168,7 @@ const Checkout = () => {
 
     try {
       // Generate order number
-      const orderNumber = `ORD${Date.now()}${Math.floor(Math.random() * 1000)}`;
+      const orderNumber = `ORD${Date.now()}`;
       const averageCreditPeriod = calculateAverageCreditPeriod(cartItems);
       
       // Create order data for backend
