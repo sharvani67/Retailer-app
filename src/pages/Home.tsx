@@ -4,7 +4,7 @@ import { Search, Heart, ShoppingCart, Bell } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import ProductCard from '@/components/ProductCard';
 import TabBar from '@/components/TabBar';
-import { banners, fetchCategories, fetchProducts } from '@/data/products'; // Import the functions
+import { banners, fetchCategories, fetchProducts } from '@/data/products';
 import { useApp } from '@/contexts/AppContext';
 import { useNavigate } from 'react-router-dom';
 import { Category, Product } from '@/types';
@@ -16,10 +16,10 @@ const Home = () => {
   const [productsList, setProductsList] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [productsLoading, setProductsLoading] = useState(true);
-  const { cart, wishlist } = useApp();
+  const { cart, syncCartWithBackend, user } = useApp(); // Add user and syncCartWithBackend
   const navigate = useNavigate();
 
-  // Load categories and products
+  // Load categories, products, AND cart
   useEffect(() => {
     const loadData = async () => {
       try {
@@ -35,8 +35,12 @@ const Home = () => {
         setCategoriesList(categoriesData);
         setProductsList(productsData);
         
+        // Always sync cart from backend on page load
+        await syncCartWithBackend();
+        
         console.log('Loaded categories:', categoriesData);
         console.log('Loaded products:', productsData);
+        console.log('Cart synced from backend');
         
       } catch (error) {
         console.error('Failed to load data:', error);
@@ -49,7 +53,14 @@ const Home = () => {
     };
 
     loadData();
-  }, []);
+  }, []); // Remove user dependency to run on every page load
+
+  // Sync cart whenever user changes
+  useEffect(() => {
+    if (user) {
+      syncCartWithBackend();
+    }
+  }, [user]); // Sync when user changes
 
   const filteredProducts = productsList.filter(product => {
     const matchesCategory = selectedCategory === 'all' || product.category === selectedCategory;
@@ -60,7 +71,6 @@ const Home = () => {
 
   return (
     <>
-      {/* <CreditPeriodPopup /> */}
       <div className="min-h-screen bg-background pb-20">
         {/* Header */}
         <header className="sticky top-0 z-40 bg-background/95 backdrop-blur-lg border-b border-border">
@@ -71,18 +81,6 @@ const Home = () => {
                 <p className="text-sm text-muted-foreground">Find the best deals</p>
               </div>
               <div className="flex gap-2">
-                {/* <motion.button
-                  whileTap={{ scale: 0.9 }}
-                  onClick={() => navigate('/wishlist')}
-                  className="relative p-2 hover:bg-muted rounded-full"
-                >
-                  <Heart className="h-6 w-6" />
-                  {wishlist.length > 0 && (
-                    <span className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground text-xs font-semibold rounded-full h-5 w-5 flex items-center justify-center">
-                      {wishlist.length}
-                    </span>
-                  )}
-                </motion.button> */}
                 <motion.button
                   whileTap={{ scale: 0.9 }}
                   onClick={() => navigate('/cart')}
