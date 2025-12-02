@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { ArrowLeft, Minus, Plus, Trash2, ShoppingBag, Tag } from 'lucide-react';
+import { ArrowLeft, Minus, Plus, Trash2, ShoppingBag, Tag, Receipt, CreditCard } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import TabBar from '@/components/TabBar';
 import { useApp } from '@/contexts/AppContext';
@@ -46,62 +46,165 @@ const Cart = () => {
     initializeCart();
   }, [user, syncCartWithBackend, isInitialized]);
 
-  // Calculate user discount percentage - convert decimal to percentage
-  const userDiscountDecimal = user?.discount ? parseFloat(user.discount) : 0;
-  const userDiscountPercentage = userDiscountDecimal * 100; // Convert 0.12 to 12%
+  // Get user discount percentage - assuming it's now stored as 5.00 for 5%
+  const userDiscountPercentage = user?.discount ? parseFloat(user.discount) : 0;
 
-  // Calculate item total with credit multiplier and discount
-  const calculateItemTotal = (item: any) => {
-    const multiplier = item.priceMultiplier || 1;
-    const baseTotal = item.product.price * item.quantity * multiplier;
-    
-    // Apply user discount if available (using decimal value)
-    if (userDiscountDecimal > 0) {
-      return baseTotal * (1 - userDiscountDecimal);
+  // Calculate item price breakdown according to your WhatsApp example
+  const calculateItemBreakdown = (item: any) => {
+    const price = parseFloat(item.product.price);
+    const gstRate = parseFloat(item.product.gst_rate) || 0;
+    const isInclusiveGST = item.product.inclusive_gst === "Inclusive";
+    const quantity = item.quantity || 1;
+    const creditMultiplier = item.priceMultiplier || 1;
+    const creditPercentage = item.creditPercentage || 0;
+
+    // FOR INCLUSIVE GST
+    if (isInclusiveGST) {
+      // Step 1: Extract base amount from price (which includes GST)
+      const baseAmountPerUnit = price / (1 + (gstRate / 100));
+      
+      // Step 2: Apply credit charge per unit
+      const priceAfterCreditPerUnit = baseAmountPerUnit * creditMultiplier;
+      const creditChargePerUnit = priceAfterCreditPerUnit - baseAmountPerUnit;
+      
+      // Step 3: Calculate total for quantity
+      const totalBaseAmount = baseAmountPerUnit * quantity;
+      const totalCreditCharges = creditChargePerUnit * quantity;
+      const totalAmountAfterCredit = totalBaseAmount + totalCreditCharges;
+      
+      // Step 4: Apply user discount
+      let discountAmount = 0;
+      if (userDiscountPercentage > 0) {
+        discountAmount = (totalAmountAfterCredit * userDiscountPercentage) / 100;
+      }
+      
+      // Step 5: Calculate taxable amount
+      const taxableAmount = totalAmountAfterCredit - discountAmount;
+      
+      // Step 6: Calculate tax amount on taxable amount
+      const taxAmount = (taxableAmount * gstRate) / 100;
+      
+      // Step 7: Final total
+      const finalPayableAmount = taxableAmount + taxAmount;
+
+      return {
+        basePrice: price,
+        gstRate,
+        isInclusiveGST: true,
+        quantity,
+        creditMultiplier,
+        creditPercentage,
+        
+        perUnit: {
+          price: price,
+          baseAmount: baseAmountPerUnit,
+          creditCharge: creditChargePerUnit,
+        },
+        
+        totalBaseAmount,
+        totalCreditCharges,
+        discountAmount,
+        taxableAmount,
+        taxAmount,
+        finalPayableAmount
+      };
     }
     
-    return baseTotal;
+    // FOR EXCLUSIVE GST
+    else {
+      const baseAmountPerUnit = price;
+      const priceAfterCreditPerUnit = baseAmountPerUnit * creditMultiplier;
+      const creditChargePerUnit = priceAfterCreditPerUnit - baseAmountPerUnit;
+      
+      const totalBaseAmount = baseAmountPerUnit * quantity;
+      const totalCreditCharges = creditChargePerUnit * quantity;
+      const totalAmountAfterCredit = totalBaseAmount + totalCreditCharges;
+      
+      let discountAmount = 0;
+      if (userDiscountPercentage > 0) {
+        discountAmount = (totalAmountAfterCredit * userDiscountPercentage) / 100;
+      }
+      
+      const taxableAmount = totalAmountAfterCredit - discountAmount;
+      const taxAmount = (taxableAmount * gstRate) / 100;
+      const finalPayableAmount = taxableAmount + taxAmount;
+
+      return {
+        basePrice: price,
+        gstRate,
+        isInclusiveGST: false,
+        quantity,
+        creditMultiplier,
+        creditPercentage,
+        
+        perUnit: {
+          price: price,
+          baseAmount: baseAmountPerUnit,
+          creditCharge: creditChargePerUnit,
+        },
+        
+        totalBaseAmount,
+        totalCreditCharges,
+        discountAmount,
+        taxableAmount,
+        taxAmount,
+        finalPayableAmount
+      };
+    }
   };
 
-  // Calculate item discount amount
+  // Calculate item total
+  const calculateItemTotal = (item: any) => {
+    const breakdown = calculateItemBreakdown(item);
+    return breakdown.finalPayableAmount;
+  };
+
+  // Calculate item discount
   const calculateItemDiscount = (item: any) => {
-    if (userDiscountDecimal <= 0) return 0;
-    
-    const multiplier = item.priceMultiplier || 1;
-    const baseTotal = item.product.price * item.quantity * multiplier;
-    return baseTotal * userDiscountDecimal;
+    const breakdown = calculateItemBreakdown(item);
+    return breakdown.discountAmount;
   };
 
-  // Calculate subtotal without credit and discount
+  // Calculate subtotal
   const subtotal = cart.reduce(
-    (sum, item) => sum + item.product.price * item.quantity,
+    (sum, item) => {
+      const breakdown = calculateItemBreakdown(item);
+      return sum + breakdown.totalBaseAmount;
+    },
     0
   );
 
   // Calculate total credit charges
   const totalCreditCharges = cart.reduce(
     (sum, item) => {
-      const multiplier = item.priceMultiplier || 1;
-      const baseTotal = item.product.price * item.quantity;
-      const creditTotal = baseTotal * multiplier;
-      return sum + (creditTotal - baseTotal);
+      const breakdown = calculateItemBreakdown(item);
+      return sum + breakdown.totalCreditCharges;
     },
     0
   );
 
-  // Calculate total discount amount
+  // Calculate total discount
   const totalDiscount = cart.reduce(
     (sum, item) => sum + calculateItemDiscount(item),
     0
   );
 
-  // Calculate final total with credit multipliers and discount
+  // Calculate total tax
+  const totalTax = cart.reduce(
+    (sum, item) => {
+      const breakdown = calculateItemBreakdown(item);
+      return sum + breakdown.taxAmount;
+    },
+    0
+  );
+
+  // Calculate final total
   const finalTotal = cart.reduce(
     (sum, item) => sum + calculateItemTotal(item),
     0
   );
 
-  // Helper function to get display text for credit period
+  // Helper function for credit period display
   const getCreditPeriodDisplay = (days: string) => {
     if (!days && days !== "0") return "Select Credit Period";
     
@@ -118,7 +221,6 @@ const Cart = () => {
     try {
       const period = creditPeriods.find(cp => cp.days === parseInt(selectedDays));
       await updateItemCreditPeriod(productId, selectedDays, period?.percentage);
-      // Refresh cart data after credit period update
       await syncCartWithBackend();
     } catch (error) {
       console.error('Error updating credit period:', error);
@@ -132,7 +234,6 @@ const Cart = () => {
     setLoading(true);
     try {
       await updateCartQuantity(productId, newQuantity);
-      // Refresh cart data after quantity update
       await syncCartWithBackend();
     } catch (error) {
       console.error('Error updating quantity:', error);
@@ -146,7 +247,6 @@ const Cart = () => {
     setLoading(true);
     try {
       await removeFromCart(productId);
-      // Refresh cart data after removal
       await syncCartWithBackend();
     } catch (error) {
       console.error('Error removing item:', error);
@@ -162,13 +262,6 @@ const Cart = () => {
       return;
     }
 
-    console.log('=== CART PAGE - CHECKOUT DATA ===');
-    console.log('Cart items:', cart);
-    console.log('Subtotal (without credit):', subtotal);
-    console.log('Total credit charges:', totalCreditCharges);
-    console.log('Total discount:', totalDiscount);
-    console.log('Final total (with credit & discount):', finalTotal);
-    
     navigate('/checkout', { 
       state: { 
         finalTotal,
@@ -177,6 +270,7 @@ const Cart = () => {
           subtotal,
           totalCreditCharges,
           totalDiscount,
+          totalTax,
           userDiscount: userDiscountPercentage,
           finalTotal
         }
@@ -255,7 +349,7 @@ const Cart = () => {
 
       <main className="max-w-md mx-auto p-4 space-y-4 pb-20">
         {/* USER DISCOUNT BANNER */}
-        {userDiscountDecimal > 0 && (
+        {userDiscountPercentage > 0 && (
           <motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -273,14 +367,10 @@ const Cart = () => {
           </motion.div>
         )}
 
-        {/* CART ITEMS WITH CREDIT PERIOD AND DISCOUNT */}
+        {/* CART ITEMS */}
         {cart.map((item, index) => {
-          const itemMultiplier = item.priceMultiplier || 1;
-          const itemPercentage = item.creditPercentage || 0;
-          const itemTotal = calculateItemTotal(item);
-          const itemCreditCharge = (item.product.price * item.quantity * itemMultiplier) - (item.product.price * item.quantity);
-          const itemDiscount = calculateItemDiscount(item);
-          const itemBaseTotal = item.product.price * item.quantity * itemMultiplier;
+          const breakdown = calculateItemBreakdown(item);
+          const itemTotal = breakdown.finalPayableAmount;
 
           return (
             <motion.div
@@ -297,14 +387,25 @@ const Cart = () => {
                   className="w-24 h-24 object-cover rounded-xl bg-muted"
                 />
 
-                <div className="flex-1 space-y-2">
-                  <div className="flex justify-between">
-                    <div className="flex-1">
-                      <h3 className="font-semibold line-clamp-1">
+                <div className="flex-1">
+                  {/* Product Header */}
+                  <div className="flex justify-between items-start mb-2">
+                    <div>
+                      <h3 className="font-semibold line-clamp-2 text-base">
                         {item.product.name}
                       </h3>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded">
+                          {breakdown.isInclusiveGST ? 'Incl. GST' : 'Excl. GST'}
+                        </span>
+                        {breakdown.gstRate > 0 && (
+                          <span className="text-xs bg-purple-100 text-purple-800 px-2 py-0.5 rounded">
+                            {breakdown.gstRate}% GST
+                          </span>
+                        )}
+                      </div>
                     </div>
-
+                    
                     <motion.button
                       whileTap={{ scale: 0.9 }}
                       onClick={() => handleRemoveItem(item.product.id)}
@@ -315,113 +416,136 @@ const Cart = () => {
                     </motion.button>
                   </div>
 
-                  {/* PRODUCT PRICE BREAKDOWN */}
-                  <div className="space-y-1">
-                    <div className="text-sm text-muted-foreground">
-                      Base price: ₹{item.product.price.toLocaleString()} × {item.quantity}
-                    </div>
-                    
-                    {item.creditPeriod !== "0" && (
-                      <div className="text-sm text-muted-foreground">
-                        Credit charge: 
-                        <span className="font-semibold text-orange-500 ml-1">
-                          ₹{itemCreditCharge.toLocaleString()}
-                        </span>
-                      </div>
-                    )}
-
-                    {userDiscountDecimal > 0 && (
-                      <div className="text-sm text-muted-foreground">
-                        Your discount ({userDiscountPercentage}%): 
-                        <span className="font-semibold text-green-600 ml-1">
-                          -₹{itemDiscount.toLocaleString()}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Original price with strikethrough if discount applied */}
-                  {userDiscountDecimal > 0 ? (
-                    <div className="flex items-center gap-2">
+                  {/* Price Display */}
+                  <div className="mb-3">
+                    <div className="flex items-baseline gap-2">
                       <span className="text-lg font-bold text-primary">
                         ₹{itemTotal.toLocaleString()}
                       </span>
-                      <span className="text-sm text-muted-foreground line-through">
-                        ₹{itemBaseTotal.toLocaleString()}
+                      <span className="text-sm text-muted-foreground">
+                        for {breakdown.quantity} {breakdown.quantity === 1 ? 'unit' : 'units'}
                       </span>
                     </div>
-                  ) : (
-                    <div className="text-lg font-bold text-primary">
-                      ₹{itemTotal.toLocaleString()}
-                    </div>
-                  )}
-
-                  {/* Quantity Buttons */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 bg-muted rounded-full p-1">
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => handleQuantityUpdate(item.product.id, item.quantity - 1)}
-                        className="rounded-full h-7 w-7"
-                        disabled={item.quantity <= 1 || loading}
-                      >
-                        <Minus className="h-3 w-3" />
-                      </Button>
-
-                      <span className="text-sm font-semibold w-8 text-center">
-                        {item.quantity}
-                      </span>
-
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => handleQuantityUpdate(item.product.id, item.quantity + 1)}
-                        className="rounded-full h-7 w-7"
-                        disabled={loading}
-                      >
-                        <Plus className="h-3 w-3" />
-                      </Button>
+                    <div className="text-sm text-muted-foreground">
+                      ₹{(itemTotal / breakdown.quantity).toFixed(2)} per unit
                     </div>
                   </div>
 
-                  {/* CREDIT PERIOD SELECT (DYNAMIC FROM API) */}
-                  <div className="mt-3">
-                    <Select
-                      value={item.creditPeriod || "0"}
-                      onValueChange={(value) => handleCreditPeriodChange(item.product.id, value)}
-                      disabled={loading}
-                    >
-                      <SelectTrigger className="w-full bg-muted">
-                        <SelectValue>
-                          {getCreditPeriodDisplay(item.creditPeriod)}
-                        </SelectValue>
-                      </SelectTrigger>
-
-                      <SelectContent>
-                        {creditPeriods.map((period) => (
-                          <SelectItem 
-                            key={period.days} 
-                            value={period.days.toString()}
-                          >
-                            {period.days} days (+{period.percentage}%)
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {/* DISCOUNT DISPLAY */}
-                  {userDiscountDecimal > 0 && (
-                    <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded-lg">
-                      <div className="flex items-center gap-2 text-green-700">
-                        <Tag className="h-3 w-3" />
-                        <span className="text-xs font-medium">
-                          Your {userDiscountPercentage}% discount applied: -₹{itemDiscount.toLocaleString()}
+                  {/* CALCULATION BREAKDOWN - Mobile Optimized */}
+                  <div className="space-y-2 text-sm mb-4">
+                    {/* Base Amount */}
+                    <div className="flex justify-between py-1 border-b border-gray-100">
+                      <span className="text-muted-foreground">Base Amount:</span>
+                      <span>₹{breakdown.totalBaseAmount.toFixed(2)}</span>
+                    </div>
+                    
+                    {/* Credit Charges */}
+                    {breakdown.creditMultiplier > 1 && (
+                      <div className="flex justify-between py-1 border-b border-gray-100">
+                        <div className="flex items-center gap-1">
+                          <CreditCard className="h-3 w-3 text-orange-500" />
+                          <span className="text-muted-foreground">Credit ({breakdown.creditPercentage}%):</span>
+                        </div>
+                        <span className="text-orange-500 font-medium">
+                          +₹{breakdown.totalCreditCharges.toFixed(2)}
                         </span>
                       </div>
+                    )}
+                    
+                    {/* User Discount */}
+                    {userDiscountPercentage > 0 && (
+                      <div className="flex justify-between py-1 border-b border-gray-100">
+                        <div className="flex items-center gap-1">
+                          <Tag className="h-3 w-3 text-green-600" />
+                          <span className="text-muted-foreground">Your Discount ({userDiscountPercentage}%):</span>
+                        </div>
+                        <span className="text-green-600 font-medium">
+                          -₹{breakdown.discountAmount.toFixed(2)}
+                        </span>
+                      </div>
+                    )}
+                    
+                    {/* Taxable Amount */}
+                    <div className="flex justify-between py-1 border-b border-gray-100">
+                      <span className="text-muted-foreground">Taxable Amount:</span>
+                      <span>₹{breakdown.taxableAmount.toFixed(2)}</span>
                     </div>
-                  )}
+                    
+                    {/* GST */}
+                    {breakdown.gstRate > 0 && (
+                      <div className="flex justify-between py-1 border-b border-gray-100">
+                        <span className="text-muted-foreground">GST ({breakdown.gstRate}%):</span>
+                        <span className="text-purple-600 font-medium">
+                          +₹{breakdown.taxAmount.toFixed(2)}
+                        </span>
+                      </div>
+                    )}
+                    
+                    {/* Final Total */}
+                    <div className="flex justify-between pt-1">
+                      <span className="font-semibold">Item Total:</span>
+                      <span className="font-bold text-primary">
+                        ₹{breakdown.finalPayableAmount.toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Quantity and Credit Controls */}
+                  <div className="space-y-3">
+                    {/* Quantity Controls */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 bg-muted rounded-full p-1">
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => handleQuantityUpdate(item.product.id, item.quantity - 1)}
+                          className="rounded-full h-7 w-7"
+                          disabled={item.quantity <= 1 || loading}
+                        >
+                          <Minus className="h-3 w-3" />
+                        </Button>
+
+                        <span className="text-sm font-semibold w-8 text-center">
+                          {item.quantity}
+                        </span>
+
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => handleQuantityUpdate(item.product.id, item.quantity + 1)}
+                          className="rounded-full h-7 w-7"
+                          disabled={loading}
+                        >
+                          <Plus className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Credit Period Select */}
+                    <div>
+                      <Select
+                        value={item.creditPeriod || "0"}
+                        onValueChange={(value) => handleCreditPeriodChange(item.product.id, value)}
+                        disabled={loading}
+                      >
+                        <SelectTrigger className="w-full bg-muted">
+                          <SelectValue>
+                            {getCreditPeriodDisplay(item.creditPeriod)}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          {creditPeriods.map((period) => (
+                            <SelectItem 
+                              key={period.days} 
+                              value={period.days.toString()}
+                            >
+                              {period.days} days (+{period.percentage}%)
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
                 </div>
               </div>
             </motion.div>
@@ -433,39 +557,61 @@ const Cart = () => {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="bg-card rounded-2xl p-6 shadow-lg border border-border space-y-3"
+          className="bg-card rounded-2xl p-6 shadow-lg border border-border space-y-4"
         >
-          <h3 className="font-semibold text-lg mb-4">Order Summary</h3>
-
-          <div className="flex justify-between text-muted-foreground">
-            <span>Subtotal ({cart.length} items)</span>
-            <span>₹{subtotal.toLocaleString()}</span>
+          <div className="flex items-center gap-2 mb-4">
+            <Receipt className="h-5 w-5 text-primary" />
+            <h3 className="font-semibold text-lg">Order Summary</h3>
           </div>
 
-          <div className="flex justify-between text-muted-foreground">
-            <span>Total Credit Charges</span>
-            <span className="text-orange-500">+₹{totalCreditCharges.toLocaleString()}</span>
-          </div>
-
-          {userDiscountDecimal > 0 && (
-            <div className="flex justify-between text-green-600">
-              <span>Your Discount ({userDiscountPercentage}%)</span>
-              <span className="font-semibold">-₹{totalDiscount.toLocaleString()}</span>
+          <div className="space-y-3">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Subtotal ({cart.length} items)</span>
+              <span>₹{subtotal.toLocaleString()}</span>
             </div>
-          )}
 
-          <div className="border-t border-border pt-3 flex justify-between text-xl font-bold">
-            <span>Final Total</span>
-            <span className="text-primary">
-              ₹{finalTotal.toLocaleString()}
-            </span>
-          </div>
+            {totalCreditCharges > 0 && (
+              <div className="flex justify-between">
+                <div className="flex items-center gap-2">
+                  <CreditCard className="h-4 w-4 text-orange-500" />
+                  <span className="text-muted-foreground">Credit Charges</span>
+                </div>
+                <span className="text-orange-500">+₹{totalCreditCharges.toLocaleString()}</span>
+              </div>
+            )}
 
-          {userDiscountDecimal > 0 && (
-            <div className="text-xs text-muted-foreground text-center pt-2">
-              You saved ₹{totalDiscount.toLocaleString()} with your special discount!
+            {totalDiscount > 0 && (
+              <div className="flex justify-between">
+                <div className="flex items-center gap-2">
+                  <Tag className="h-4 w-4 text-green-600" />
+                  <span className="text-green-600">Your Discount ({userDiscountPercentage}%)</span>
+                </div>
+                <span className="font-semibold text-green-600">-₹{totalDiscount.toLocaleString()}</span>
+              </div>
+            )}
+
+            {totalTax > 0 && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Total GST</span>
+                <span className="text-purple-600">+₹{totalTax.toLocaleString()}</span>
+              </div>
+            )}
+
+            <div className="border-t border-border pt-3">
+              <div className="flex justify-between text-xl font-bold">
+                <span>Final Total</span>
+                <span className="text-primary">₹{finalTotal.toLocaleString()}</span>
+              </div>
             </div>
-          )}
+
+            {totalDiscount > 0 && (
+              <div className="text-center pt-2">
+                <p className="text-sm text-green-600">
+                  🎉 You saved ₹{totalDiscount.toLocaleString()} with your {userDiscountPercentage}% discount!
+                </p>
+              </div>
+            )}
+          </div>
         </motion.div>
 
         {/* ACTION BUTTONS */}
@@ -487,7 +633,7 @@ const Cart = () => {
           <Button
             onClick={handleCheckout}
             size="lg"
-            className="flex-1"
+            className="flex-1 bg-primary hover:bg-primary/90"
             disabled={loading}
           >
             {loading ? "Processing..." : "Checkout"}

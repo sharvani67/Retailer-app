@@ -5,10 +5,14 @@ export interface Product {
   price: number;
   unit: string;
   image: string;
-  category: string;
+  category: string;        // category_id as string
+  category_name?: string;  // readable category name from API
   supplier: string;
   stock: number;
+  gst_rate: number;        // e.g., 18
+  inclusive_gst: string;   // "Inclusive" or "Exclusive"
 }
+
 export interface Category {
   id: string;
   name: string;

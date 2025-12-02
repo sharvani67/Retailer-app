@@ -120,60 +120,71 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
 
   // Enhanced sync cart with backend
-  const syncCartWithBackend = async (): Promise<void> => {
-    if (!user) return;
+const syncCartWithBackend = async (): Promise<void> => {
+  if (!user) return;
 
-    try {
-      setLoading(true);
-      const response = await fetch(`${baseurl}/api/cart/customer-cart/${user.id}`);
-      if (!response.ok) throw new Error('Failed to fetch cart');
+  try {
+    setLoading(true);
+    const response = await fetch(`${baseurl}/api/cart/customer-cart/${user.id}`);
+    if (!response.ok) throw new Error('Failed to fetch cart');
+    
+    const cartItems = await response.json();
+    
+    // First, fetch all products at once to get complete data
+    const productsResponse = await fetch(`${baseurl}/get-sales-products`);
+    if (!productsResponse.ok) throw new Error('Failed to fetch products');
+    
+    const allProducts = await productsResponse.json();
+    
+    // Create a map for quick lookup
+    const productMap = new Map();
+    allProducts.forEach((product: any) => {
+      productMap.set(product.id.toString(), product);
+    });
+    
+    // Transform backend cart items to frontend format
+    const transformedCart = cartItems.map((item: any) => {
+      const productData = productMap.get(item.product_id.toString());
       
-      const cartItems = await response.json();
+      if (!productData) {
+        console.warn(`Product ${item.product_id} not found in products list`);
+        return null;
+      }
       
-      // Transform backend cart items to frontend format
-      const transformedCart = await Promise.all(
-        cartItems.map(async (item: any) => {
-          try {
-            // Fetch product details
-            const productResponse = await fetch(`${baseurl}/products/${item.product_id}`);
-            if (!productResponse.ok) throw new Error('Failed to fetch product');
-            const productData = await productResponse.json();
-            
-            return {
-              id: item.id,
-              product: {
-                id: productData.id.toString(),
-                name: productData.goods_name,
-                description: productData.description,
-                price: parseFloat(productData.price),
-                unit: productData.unit,
-                image: productData.image || flourImage,
-                category: productData.category,
-                supplier: productData.supplier,
-                stock: productData.stock
-              },
-              quantity: item.quantity,
-              creditPeriod: item.credit_period?.toString() || "0",
-              priceMultiplier: 1 + ((item.credit_percentage || 0) / 100),
-              creditPercentage: item.credit_percentage || 0
-            };
-          } catch (error) {
-            console.error('Error processing cart item:', error);
-            return null;
-          }
-        })
-      );
-      
-      // Filter out any failed items and update cart
-      const validCartItems = transformedCart.filter(item => item !== null) as CartItem[];
-      setCart(validCartItems);
-    } catch (error) {
-      console.error('Error syncing cart:', error);
-      toast.error('Failed to load cart');
-    } finally {
-      setLoading(false);
-    }
-  };
+      return {
+        id: item.id,
+        product: {
+          id: productData.id.toString(),
+          name: productData.name || productData.goods_name || "Unknown Product",
+          description: productData.description || "",
+          price: parseFloat(productData.price) || 0,
+          unit: productData.unit || "Units",
+          image: productData.image || flourImage,
+          category: productData.category || "",
+          supplier: productData.supplier || "Unknown Supplier",
+          stock: productData.stock || 0,
+          // ADD THESE GST FIELDS
+          gst_rate: parseFloat(productData.gst_rate) || 0,
+          inclusive_gst: productData.inclusive_gst || "Exclusive"
+        },
+        quantity: item.quantity,
+        creditPeriod: item.credit_period?.toString() || "0",
+        priceMultiplier: 1 + ((item.credit_percentage || 0) / 100),
+        creditPercentage: item.credit_percentage || 0
+      };
+    });
+    
+    // Filter out any failed items and update cart
+    const validCartItems = transformedCart.filter(item => item !== null) as CartItem[];
+    setCart(validCartItems);
+    
+  } catch (error) {
+    console.error('Error syncing cart:', error);
+    toast.error('Failed to load cart');
+  } finally {
+    setLoading(false);
+  }
+};
 
   // Add to Cart with backend sync
 // Add to Cart with backend sync

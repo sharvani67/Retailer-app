@@ -42,28 +42,41 @@ const fetchProducts = async (): Promise<Product[]> => {
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
+
     const data = await response.json();
-    
-    console.log('API Response:', data); // Debug log
-    
-    // Map the API response to match your Product type
+
+    console.log("API Response:", data); // Debug
+
     return data.map((product: any) => ({
       id: product.id.toString(),
       name: product.name,
-      description: product.description || `${product.name} - Premium quality product`,
-      price: Number(product.price) || 0, // Convert string to number
-      unit: product.unit,
-      image: getProductImage(product.category),
-      category: product.category_id?.toString(), // Use category_id for filtering
-      supplier: product.supplier,
+      description:
+        product.description ||
+        `${product.name} - Premium quality product`,
+
+      price: Number(product.price) || 0,
+
+      unit: product.unit || "Units",
+
+      category: product.category_id?.toString(),
+      category_name: product.category || "",
+
+      supplier: product.supplier || "Unknown Supplier",
+
       stock: product.stock || 50,
+
+      image: getProductImage(product.category),
+
+      // ⭐ Newly added fields matched from your JSON
+      gst_rate: Number(product.gst_rate) || 0,
+      inclusive_gst: product.inclusive_gst || "Exclusive",
     }));
   } catch (error) {
-    console.error('Error fetching products:', error);
-    // Return empty array if API fails
+    console.error("Error fetching products:", error);
     return [];
   }
 };
+
 
 // Function to fetch a single product by ID
 const fetchProductById = async (id: string): Promise<Product | null> => {

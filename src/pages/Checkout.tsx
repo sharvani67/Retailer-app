@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, MapPin, CreditCard, Tag } from 'lucide-react';
+import { ArrowLeft, MapPin, CreditCard, Tag, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -12,20 +12,18 @@ import { baseurl } from '@/Api/Baseurl';
 const Checkout = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { cart, placeOrder, user, clearCart } = useApp();
+  const { cart, user, clearCart } = useApp();
   
-  // Get checkout data from location state or use cart
+  // Get checkout data from location state
   const checkoutData = location.state;
-  const directBuyItems = location.state?.directBuy;
-  const items = directBuyItems || cart;
-  
-  // Use credit breakdown from location state or calculate from cart
-  const creditBreakdown = checkoutData?.creditBreakdown || calculateCreditBreakdown(items);
+  const cartItems = checkoutData?.cartItems || cart;
   
   // Calculate user discount
-  const userDiscountDecimal = user?.discount ? parseFloat(user.discount) : 0;
-  const userDiscountPercentage = userDiscountDecimal * 100;
-
+  const userDiscountPercentage = user?.discount ? parseFloat(user.discount) : 0;
+  
+  // Order Mode State
+  const [orderMode, setOrderMode] = useState<'KACHA' | 'PAKKA'>('KACHA');
+  
   // Address
   const [address, setAddress] = useState({
     name: user?.name || "",
@@ -42,40 +40,126 @@ const Checkout = () => {
     pincode: user?.shipping_pin_code || "",
   });
 
-  // Helper function to calculate credit breakdown from items
-  function calculateCreditBreakdown(items: any[]) {
-    const subtotal = items.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
+  // Calculate item breakdown (same as cart)
+  const calculateItemBreakdown = (item: any) => {
+    const price = parseFloat(item.product.price);
+    const gstRate = parseFloat(item.product.gst_rate) || 0;
+    const isInclusiveGST = item.product.inclusive_gst === "Inclusive";
+    const quantity = item.quantity || 1;
+    const creditMultiplier = item.priceMultiplier || 1;
+    const creditPercentage = item.creditPercentage || 0;
+
+    // FOR INCLUSIVE GST
+    if (isInclusiveGST) {
+      const baseAmountPerUnit = price / (1 + (gstRate / 100));
+      const priceAfterCreditPerUnit = baseAmountPerUnit * creditMultiplier;
+      const creditChargePerUnit = priceAfterCreditPerUnit - baseAmountPerUnit;
+      
+      const totalBaseAmount = baseAmountPerUnit * quantity;
+      const totalCreditCharges = creditChargePerUnit * quantity;
+      const totalAmountAfterCredit = totalBaseAmount + totalCreditCharges;
+      
+      let discountAmount = 0;
+      if (userDiscountPercentage > 0) {
+        discountAmount = (totalAmountAfterCredit * userDiscountPercentage) / 100;
+      }
+      
+      const taxableAmount = totalAmountAfterCredit - discountAmount;
+      const taxAmount = (taxableAmount * gstRate) / 100;
+      const finalPayableAmount = taxableAmount + taxAmount;
+
+      return {
+        basePrice: price,
+        gstRate,
+        isInclusiveGST: true,
+        quantity,
+        creditMultiplier,
+        creditPercentage,
+        totalBaseAmount,
+        totalCreditCharges,
+        discountAmount,
+        taxableAmount,
+        taxAmount,
+        finalPayableAmount
+      };
+    }
     
-    const totalCreditCharges = items.reduce((sum, item) => {
-      const multiplier = item.priceMultiplier || 1;
-      const baseTotal = item.product.price * item.quantity;
-      const creditTotal = baseTotal * multiplier;
-      return sum + (creditTotal - baseTotal);
-    }, 0);
+    // FOR EXCLUSIVE GST
+    else {
+      const baseAmountPerUnit = price;
+      const priceAfterCreditPerUnit = baseAmountPerUnit * creditMultiplier;
+      const creditChargePerUnit = priceAfterCreditPerUnit - baseAmountPerUnit;
+      
+      const totalBaseAmount = baseAmountPerUnit * quantity;
+      const totalCreditCharges = creditChargePerUnit * quantity;
+      const totalAmountAfterCredit = totalBaseAmount + totalCreditCharges;
+      
+      let discountAmount = 0;
+      if (userDiscountPercentage > 0) {
+        discountAmount = (totalAmountAfterCredit * userDiscountPercentage) / 100;
+      }
+      
+      const taxableAmount = totalAmountAfterCredit - discountAmount;
+      const taxAmount = (taxableAmount * gstRate) / 100;
+      const finalPayableAmount = taxableAmount + taxAmount;
 
-    const totalDiscount = items.reduce((sum, item) => {
-      if (userDiscountDecimal <= 0) return 0;
-      const multiplier = item.priceMultiplier || 1;
-      const baseTotal = item.product.price * item.quantity * multiplier;
-      return sum + (baseTotal * userDiscountDecimal);
-    }, 0);
+      return {
+        basePrice: price,
+        gstRate,
+        isInclusiveGST: false,
+        quantity,
+        creditMultiplier,
+        creditPercentage,
+        totalBaseAmount,
+        totalCreditCharges,
+        discountAmount,
+        taxableAmount,
+        taxAmount,
+        finalPayableAmount
+      };
+    }
+  };
 
-    const finalTotal = subtotal + totalCreditCharges - totalDiscount;
+  // Calculate credit breakdown for the order summary
+  const calculateCreditBreakdown = (items: any[]) => {
+    let subtotal = 0;
+    let totalCreditCharges = 0;
+    let totalDiscount = 0;
+    let totalTax = 0;
+    let finalTotal = 0;
+
+    items.forEach(item => {
+      const breakdown = calculateItemBreakdown(item);
+      subtotal += breakdown.totalBaseAmount;
+      totalCreditCharges += breakdown.totalCreditCharges;
+      totalDiscount += breakdown.discountAmount;
+      totalTax += breakdown.taxAmount;
+      finalTotal += breakdown.finalPayableAmount;
+    });
 
     return {
       subtotal,
       totalCreditCharges,
       totalDiscount,
+      totalTax,
       userDiscount: userDiscountPercentage,
       finalTotal
     };
-  }
+  };
+
+  const creditBreakdown = calculateCreditBreakdown(cartItems);
+
+  // Calculate average credit period
+  const calculateAverageCreditPeriod = (items: any[]) => {
+    const totalPeriod = items.reduce((sum, item) => sum + (parseInt(item.creditPeriod) || 0), 0);
+    return items.length > 0 ? Math.round(totalPeriod / items.length) : 0;
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setAddress({ ...address, [e.target.id]: e.target.value });
   };
 
-  // Enhanced place order function to work with backend
+  // Enhanced place order function
   const handlePlaceOrder = async () => {
     if (!user) {
       alert('Please login to place an order');
@@ -83,23 +167,68 @@ const Checkout = () => {
     }
 
     try {
+      // Generate order number
+      const orderNumber = `ORD${Date.now()}${Math.floor(Math.random() * 1000)}`;
+      const averageCreditPeriod = calculateAverageCreditPeriod(cartItems);
+      
       // Create order data for backend
       const orderData = {
-        order_number: `ORD${Date.now()}`,
-        customer_id: user.id,
+        order_number: orderNumber,
+        customer_id: parseInt(user.id),
         customer_name: address.name,
         order_total: creditBreakdown.finalTotal,
         discount_amount: creditBreakdown.totalDiscount,
-        taxable_amount: creditBreakdown.subtotal,
-        tax_amount: 0, // You can calculate tax if needed
+        taxable_amount: creditBreakdown.subtotal + creditBreakdown.totalCreditCharges,
+        tax_amount: creditBreakdown.totalTax,
         net_payable: creditBreakdown.finalTotal,
-        credit_period: calculateAverageCreditPeriod(items),
+        credit_period: averageCreditPeriod,
         estimated_delivery_date: new Date(Date.now() + 5 * 86400000).toISOString().split('T')[0],
-        order_placed_by: user.id, // FIX: Use user ID instead of name
-        order_mode: 'online'
+        order_placed_by: parseInt(user.id),
+        order_mode: orderMode
       };
 
-      // First create the main order
+      console.log('Order Data:', orderData);
+
+      // Prepare order items with proper calculations
+      const orderItems = cartItems.map(item => {
+        const breakdown = calculateItemBreakdown(item);
+        const itemPrice = parseFloat(item.product.price);
+        const gstRate = parseFloat(item.product.gst_rate) || 0;
+        const isInclusiveGST = item.product.inclusive_gst === "Inclusive";
+        
+        // Split GST 50/50 for SGST and CGST
+        const sgstPercentage = gstRate / 2;
+        const cgstPercentage = gstRate / 2;
+        const sgstAmount = breakdown.taxAmount / 2;
+        const cgstAmount = breakdown.taxAmount / 2;
+
+        return {
+          product_id: parseInt(item.product.id),
+          item_name: item.product.name,
+          mrp: itemPrice, // Maximum Retail Price
+          sale_price: itemPrice, // Selling Price
+          price: itemPrice * (item.priceMultiplier || 1), // Price after credit
+          quantity: item.quantity,
+          total_amount: (itemPrice * item.quantity * (item.priceMultiplier || 1)),
+          discount_percentage: userDiscountPercentage,
+          discount_amount: breakdown.discountAmount,
+          taxable_amount: breakdown.taxableAmount,
+          tax_percentage: gstRate,
+          tax_amount: breakdown.taxAmount,
+          item_total: breakdown.finalPayableAmount,
+          credit_period: parseInt(item.creditPeriod) || 0,
+          credit_percentage: item.creditPercentage || 0,
+          sgst_percentage: sgstPercentage,
+          sgst_amount: sgstAmount,
+          cgst_percentage: cgstPercentage,
+          cgst_amount: cgstAmount,
+          discount_applied_scheme: userDiscountPercentage > 0 ? 'user_discount' : 'none'
+        };
+      });
+
+      console.log('Order Items:', orderItems);
+
+      // Send to backend
       const orderResponse = await fetch(`${baseurl}/orders/create-complete-order`, {
         method: 'POST',
         headers: {
@@ -107,28 +236,7 @@ const Checkout = () => {
         },
         body: JSON.stringify({
           order: orderData,
-          orderItems: items.map(item => ({
-            product_id: parseInt(item.product.id),
-            item_name: item.product.name,
-            mrp: item.product.price,
-            sale_price: item.product.price,
-            price: item.product.price * (item.priceMultiplier || 1),
-            quantity: item.quantity,
-            total_amount: (item.product.price * item.quantity * (item.priceMultiplier || 1)) - (item.product.price * item.quantity * (item.priceMultiplier || 1) * userDiscountDecimal),
-            discount_percentage: userDiscountPercentage,
-            discount_amount: item.product.price * item.quantity * (item.priceMultiplier || 1) * userDiscountDecimal,
-            taxable_amount: item.product.price * item.quantity,
-            tax_percentage: 0,
-            tax_amount: 0,
-            item_total: (item.product.price * item.quantity * (item.priceMultiplier || 1)) - (item.product.price * item.quantity * (item.priceMultiplier || 1) * userDiscountDecimal),
-            credit_period: parseInt(item.creditPeriod) || 0,
-            credit_percentage: item.creditPercentage || 0,
-            sgst_percentage: 0,
-            sgst_amount: 0,
-            cgst_percentage: 0,
-            cgst_amount: 0,
-            discount_applied_scheme: userDiscountPercentage > 0 ? 'user_discount' : 'none'
-          }))
+          orderItems: orderItems
         })
       });
 
@@ -138,31 +246,26 @@ const Checkout = () => {
       }
 
       const orderResult = await orderResponse.json();
+      console.log('Order Response:', orderResult);
       
       // Clear cart after successful order
-      if (!directBuyItems) {
-        await clearCart();
-      }
+      await clearCart();
 
       // Navigate to confirmation page
       navigate('/order-confirmation', {
         state: { 
           orderId: orderResult.order_number || orderData.order_number, 
+          orderNumber: orderResult.order_number,
           total: creditBreakdown.finalTotal,
-          creditBreakdown 
+          creditBreakdown,
+          orderMode
         },
       });
 
     } catch (error) {
       console.error('Error placing order:', error);
-      alert('Failed to place order. Please try again.');
+      alert(`Failed to place order: ${error.message}`);
     }
-  };
-
-  // Helper function to calculate average credit period
-  const calculateAverageCreditPeriod = (items: any[]) => {
-    const totalPeriod = items.reduce((sum, item) => sum + (parseInt(item.creditPeriod) || 0), 0);
-    return items.length > 0 ? Math.round(totalPeriod / items.length) : 0;
   };
 
   return (
@@ -216,64 +319,55 @@ const Checkout = () => {
           </div>
         </motion.div>
 
-        {/* Order Summary with Credit Charges and Discount */}
+        {/* Order Mode Selector */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
           className="bg-card rounded-2xl p-6 shadow-lg border border-border space-y-4"
         >
+          <h2 className="text-lg font-semibold mb-4">Order Details</h2>
+          
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="orderMode">Order Mode</Label>
+              <div className="relative">
+                <select
+                  id="orderMode"
+                  value={orderMode}
+                  onChange={(e) => setOrderMode(e.target.value as 'KACHA' | 'PAKKA')}
+                  className="w-full px-4 py-2.5 bg-background border border-input rounded-md appearance-none focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
+                >
+                  <option value="KACHA">KACHA </option>
+                  <option value="PAKKA">PAKKA </option>
+                </select>
+                <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+              </div>
+             
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Order Summary */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="bg-card rounded-2xl p-6 shadow-lg border border-border space-y-4"
+        >
           <h2 className="text-lg font-semibold mb-4">Order Summary</h2>
 
-          {/* Items List */}
-          {/* <div className="space-y-3 mb-4">
-            {items.map((item) => {
-              const itemMultiplier = item.priceMultiplier || 1;
-              const itemBaseTotal = item.product.price * item.quantity;
-              const itemCreditCharge = itemBaseTotal * itemMultiplier - itemBaseTotal;
-              const itemDiscount = userDiscountDecimal > 0 ? (itemBaseTotal * itemMultiplier) * userDiscountDecimal : 0;
-              const itemFinalTotal = (itemBaseTotal * itemMultiplier) - itemDiscount;
-
-              return (
-                <div key={item.product.id} className="space-y-2 pb-3 border-b border-border last:border-b-0">
-                  <div className="flex justify-between">
-                    <span className="font-medium text-sm">
-                      {item.product.name} × {item.quantity}
-                    </span>
-                    <span className="font-semibold text-sm">
-                      ₹{itemFinalTotal.toLocaleString()}
-                    </span>
-                  </div>
-                  
-                  <div className="space-y-1 text-xs text-muted-foreground pl-2">
-                    <div className="flex justify-between">
-                      <span>Base price</span>
-                      <span>₹{itemBaseTotal.toLocaleString()}</span>
-                    </div>
-                    
-                    {item.creditPeriod !== "0" && item.creditPeriod && (
-                      <div className="flex justify-between">
-                        <span>Credit charges ({item.creditPercentage || 0}%)</span>
-                        <span className="text-orange-500">+₹{itemCreditCharge.toLocaleString()}</span>
-                      </div>
-                    )}
-                    
-                    {userDiscountDecimal > 0 && (
-                      <div className="flex justify-between">
-                        <span>Discount ({userDiscountPercentage}%)</span>
-                        <span className="text-green-600">-₹{itemDiscount.toLocaleString()}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div> */}
+          {/* Items Count */}
+          <div className="mb-4">
+            <p className="text-muted-foreground">
+              {cartItems.length} item{cartItems.length !== 1 ? 's' : ''} in your order
+            </p>
+          </div>
 
           {/* Order Total Breakdown */}
           <div className="border-t border-border pt-4 space-y-3">
             <div className="flex justify-between text-muted-foreground">
-              <span>Subtotal ({items.length} items)</span>
+              <span>Subtotal</span>
               <span>₹{creditBreakdown.subtotal.toLocaleString()}</span>
             </div>
 
@@ -282,7 +376,7 @@ const Checkout = () => {
               <div className="flex justify-between text-muted-foreground">
                 <div className="flex items-center gap-2">
                   <CreditCard className="h-4 w-4 text-orange-500" />
-                  <span>Total Credit Charges</span>
+                  <span>Credit Charges</span>
                 </div>
                 <span className="text-orange-500">+₹{creditBreakdown.totalCreditCharges.toLocaleString()}</span>
               </div>
@@ -299,10 +393,30 @@ const Checkout = () => {
               </div>
             )}
 
+            {/* Tax */}
+            {creditBreakdown.totalTax > 0 && (
+              <div className="flex justify-between text-muted-foreground">
+                <span>Tax (GST)</span>
+                <span>+₹{creditBreakdown.totalTax.toLocaleString()}</span>
+              </div>
+            )}
+
             {/* Final Total */}
             <div className="border-t border-border pt-3 flex justify-between text-xl font-bold">
               <span>Final Total</span>
               <span className="text-primary">₹{creditBreakdown.finalTotal.toLocaleString()}</span>
+            </div>
+
+            {/* Order Mode Display */}
+            <div className="flex justify-between items-center pt-2">
+              <span className="text-sm text-muted-foreground">Order Mode:</span>
+              <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                orderMode === 'PAKKA' 
+                  ? 'bg-green-100 text-green-800 border border-green-200' 
+                  : 'bg-yellow-100 text-yellow-800 border border-yellow-200'
+              }`}>
+                {orderMode} {orderMode === 'PAKKA' ? '✓' : '⏳'}
+              </span>
             </div>
 
             {/* Savings Message */}
@@ -318,23 +432,27 @@ const Checkout = () => {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
+          transition={{ delay: 0.3 }}
+          className="sticky bottom-6 bg-background/95 backdrop-blur-lg pt-4"
         >
           <Button
             onClick={handlePlaceOrder}
             size="lg"
-            className="w-full"
+            className="w-full py-6 text-lg font-semibold"
             disabled={
               !address.name ||
               !address.phone ||
               !address.addressLine ||
               !address.city ||
               !address.pincode ||
-              items.length === 0
+              cartItems.length === 0
             }
           >
             Place Order - ₹{creditBreakdown.finalTotal.toLocaleString()}
           </Button>
+          <p className="text-xs text-center text-muted-foreground mt-2">
+            By placing this order, you agree to our terms and conditions
+          </p>
         </motion.div>
       </main>
 
