@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { Package, ChevronRight, Download, RefreshCw } from 'lucide-react';
+import { Package, ChevronRight, Download, RefreshCw, X } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import TabBar from '@/components/TabBar';
@@ -7,6 +7,17 @@ import { useApp } from '@/contexts/AppContext';
 import { useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { baseurl } from '@/Api/Baseurl';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 interface OrderItem {
   id: string;
@@ -35,6 +46,8 @@ interface ApiOrder {
   estimated_delivery_date: string;
   created_at: string;
   order_placed_by: string;
+  order_status: string;
+  invoice_status: number;
   items?: OrderItem[];
 }
 
@@ -44,6 +57,7 @@ const Orders = () => {
   const [orders, setOrders] = useState<ApiOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [cancellingOrder, setCancellingOrder] = useState<string | null>(null);
 
   // Fetch orders from API
   const fetchOrders = async () => {
@@ -98,7 +112,8 @@ const Orders = () => {
   }, [user?.id]);
 
   const getStatusColor = (status: string) => {
-    switch (status?.toLowerCase()) {
+    const statusLower = status?.toLowerCase();
+    switch (statusLower) {
       case 'delivered':
         return 'bg-green-100 text-green-800 border-green-200';
       case 'out_for_delivery':
@@ -109,6 +124,8 @@ const Orders = () => {
         return 'bg-purple-100 text-purple-800 border-purple-200';
       case 'pending':
         return 'bg-gray-100 text-gray-800 border-gray-200';
+      case 'cancelled':
+        return 'bg-red-100 text-red-800 border-red-200';
       default:
         return 'bg-gray-100 text-gray-800 border-gray-200';
     }
@@ -123,16 +140,6 @@ const Orders = () => {
       .join(' ');
   };
 
-  const handleDownloadInvoice = (order: ApiOrder) => {
-    // Generate invoice URL based on your backend
-    const invoiceUrl = `${baseurl}/invoices/${order.order_number}`;
-    const link = document.createElement('a');
-    link.href = invoiceUrl;
-    link.download = `Invoice_${order.order_number}.pdf`;
-    link.target = '_blank'; // Open in new tab for PDF
-    link.click();
-  };
-
   const handleRefresh = () => {
     fetchOrders();
   };
@@ -145,6 +152,48 @@ const Orders = () => {
         orderData: order
       } 
     });
+  };
+
+  // Check if order can be cancelled
+  const canCancelOrder = (order: ApiOrder) => {
+    return order.invoice_status === 0 && order.order_status?.toLowerCase() === 'pending';
+  };
+
+  // Cancel order function
+  const handleCancelOrder = async (orderNumber: string) => {
+    try {
+      setCancellingOrder(orderNumber);
+      
+      const response = await fetch(`${baseurl}/orders/cancel/${orderNumber}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to cancel order');
+      }
+
+      const result = await response.json();
+      
+      // Update the order status locally
+      setOrders(prevOrders => 
+        prevOrders.map(order => 
+          order.order_number === orderNumber 
+            ? { ...order, order_status: 'Cancelled' }
+            : order
+        )
+      );
+      
+      return result;
+    } catch (err) {
+      console.error('Error cancelling order:', err);
+      throw err;
+    } finally {
+      setCancellingOrder(null);
+    }
   };
 
   // Format date for display
@@ -295,35 +344,10 @@ const Orders = () => {
                 <p className="text-sm text-muted-foreground">Order ID</p>
                 <p className="font-mono font-semibold text-primary">{order.order_number}</p>
               </div>
-              <Badge className={`${getStatusColor(order.status)} border`}>
-                {getStatusLabel(order.status)}
+              <Badge className={`${getStatusColor(order.order_status || order.status)} border`}>
+                {getStatusLabel(order.order_status || order.status)}
               </Badge>
             </div>
-
-            {/* Product Preview */}
-            {/* <div
-              className="flex items-center gap-3 mb-4 pb-4 border-b border-border cursor-pointer"
-              onClick={() => handleViewDetails(order)}
-            >
-              {order.items && order.items.slice(0, 3).map((item, idx) => (
-                <div
-                  key={idx}
-                  className="w-14 h-14 rounded-lg bg-muted flex items-center justify-center text-xs font-semibold text-muted-foreground"
-                >
-                  {item.item_name?.substring(0, 2).toUpperCase() || 'PD'}
-                </div>
-              ))}
-              {order.items && order.items.length > 3 && (
-                <div className="w-14 h-14 rounded-lg bg-muted flex items-center justify-center text-sm font-semibold text-muted-foreground">
-                  +{order.items.length - 3}
-                </div>
-              )}
-              {(!order.items || order.items.length === 0) && (
-                <div className="w-14 h-14 rounded-lg bg-muted flex items-center justify-center text-xs text-muted-foreground">
-                  No Items
-                </div>
-              )}
-            </div> */}
 
             {/* Order Summary */}
             <div className="flex items-center justify-between">
@@ -332,7 +356,7 @@ const Orders = () => {
                 <p className="text-xl font-bold">₹{order.net_payable?.toLocaleString() || order.order_total?.toLocaleString() || '0'}</p>
               </div>
               <div
-                className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer"
+                className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer hover:text-primary transition-colors"
                 onClick={() => handleViewDetails(order)}
               >
                 <span>View Details</span>
@@ -340,17 +364,75 @@ const Orders = () => {
               </div>
             </div>
 
-            {/* Download Invoice Button */}
-            <div className="mt-4">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleDownloadInvoice(order)}
-                className="w-full flex items-center justify-center gap-2"
-              >
-                <Download className="h-4 w-4" />
-                Download Invoice
-              </Button>
+            {/* Action Buttons */}
+            <div className="mt-4 space-y-2">
+              {/* Download Invoice Button - Show only if invoice_status is 1 */}
+              {order.invoice_status === 1 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  // onClick={() => handleDownloadInvoice(order)}
+                  className="w-full flex items-center justify-center gap-2"
+                >
+                  <Download className="h-4 w-4" />
+                  Download Invoice
+                </Button>
+              )}
+
+              {/* Cancel Order Button - Show only if invoice_status is 0 and order_status is pending */}
+              {canCancelOrder(order) && (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      disabled={cancellingOrder === order.order_number}
+                      className="w-full flex items-center justify-center gap-2"
+                    >
+                      {cancellingOrder === order.order_number ? (
+                        <>
+                          <motion.div
+                            animate={{ rotate: 360 }}
+                            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                          >
+                            <RefreshCw className="h-4 w-4" />
+                          </motion.div>
+                          Cancelling...
+                        </>
+                      ) : (
+                        <>
+                          <X className="h-4 w-4" />
+                          Cancel Order
+                        </>
+                      )}
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Cancel Order</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Are you sure you want to cancel order <span className="font-semibold">{order.order_number}</span>? 
+                        This action cannot be undone.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Keep Order</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={async () => {
+                          try {
+                            await handleCancelOrder(order.order_number);
+                          } catch (error) {
+                            alert(error instanceof Error ? error.message : 'Failed to cancel order');
+                          }
+                        }}
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      >
+                        Yes, Cancel Order
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              )}
             </div>
 
             {/* Footer */}
@@ -358,9 +440,11 @@ const Orders = () => {
               <span>
                 Ordered on {formatDate(order.created_at)}
               </span>
-              <span>
-                Est. Delivery: {getEstimatedDelivery(order)}
-              </span>
+              {order.order_status?.toLowerCase() !== 'cancelled' && (
+                <span>
+                  Est. Delivery: {getEstimatedDelivery(order)}
+                </span>
+              )}
             </div>
           </motion.div>
         ))}
