@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Search, Heart, ShoppingCart, Bell } from 'lucide-react';
+import { Search, Heart, ShoppingCart, Bell, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import ProductCard from '@/components/ProductCard';
 import TabBar from '@/components/TabBar';
@@ -16,7 +16,7 @@ const Home = () => {
   const [productsList, setProductsList] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [productsLoading, setProductsLoading] = useState(true);
-  const { cart, syncCartWithBackend, user } = useApp(); // Add user and syncCartWithBackend
+  const { cart, syncCartWithBackend, user } = useApp();
   const navigate = useNavigate();
 
   // Load categories, products, AND cart
@@ -26,7 +26,6 @@ const Home = () => {
         setLoading(true);
         setProductsLoading(true);
         
-        // Load categories and products in parallel
         const [categoriesData, productsData] = await Promise.all([
           fetchCategories(),
           fetchProducts()
@@ -35,12 +34,7 @@ const Home = () => {
         setCategoriesList(categoriesData);
         setProductsList(productsData);
         
-        // Always sync cart from backend on page load
         await syncCartWithBackend();
-        
-        console.log('Loaded categories:', categoriesData);
-        console.log('Loaded products:', productsData);
-        console.log('Cart synced from backend');
         
       } catch (error) {
         console.error('Failed to load data:', error);
@@ -53,28 +47,43 @@ const Home = () => {
     };
 
     loadData();
-  }, []); // Remove user dependency to run on every page load
+  }, []);
 
   // Sync cart whenever user changes
   useEffect(() => {
     if (user) {
       syncCartWithBackend();
     }
-  }, [user]); // Sync when user changes
+  }, [user]);
 
   const filteredProducts = productsList.filter(product => {
+    // Filter by category
     const matchesCategory = selectedCategory === 'all' || product.category === selectedCategory;
-    const matchesSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         (product.supplier && product.supplier.toLowerCase().includes(searchQuery.toLowerCase()));
+    
+    // If no search query, only filter by category
+    if (!searchQuery.trim()) return matchesCategory;
+    
+    // Filter by search query (name, supplier, OR description)
+    const query = searchQuery.toLowerCase().trim();
+    const matchesSearch = 
+      product.name.toLowerCase().includes(query) ||
+      (product.supplier && product.supplier.toLowerCase().includes(query)) ||
+      (product.description && product.description.toLowerCase().includes(query));
+    
     return matchesCategory && matchesSearch;
   });
+
+  // Clear search function
+  const clearSearch = () => {
+    setSearchQuery('');
+  };
 
   return (
     <>
       <div className="min-h-screen bg-background pb-20">
         {/* Header */}
         <header className="sticky top-0 z-40 bg-background/95 backdrop-blur-lg border-b border-border">
-          <div className="max-w-md mx-auto p-4 space-y-4">
+          <div className="max-w-md mx-auto p-4">
             <div className="flex items-center justify-between">
               <div>
                 <h1 className="text-2xl font-bold">RetailPro</h1>
@@ -97,17 +106,6 @@ const Home = () => {
                   <Bell className="h-6 w-6" />
                 </motion.button>
               </div>
-            </div>
-
-            {/* Search Bar */}
-            <div className="relative">
-              <Search className="absolute left-3 top-3 h-5 w-5 text-muted-foreground" />
-              <Input
-                placeholder="Search products or suppliers..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10"
-              />
             </div>
           </div>
         </header>
@@ -144,7 +142,6 @@ const Home = () => {
                 All
               </motion.button>
               
-              {/* Show loading state */}
               {loading ? (
                 <div className="flex gap-2">
                   {[1, 2, 3, 4, 5].map((item) => (
@@ -157,7 +154,6 @@ const Home = () => {
                   ))}
                 </div>
               ) : (
-                // Show actual categories when loaded
                 categoriesList.map((category) => (
                   <motion.button
                     key={category.id}
@@ -176,10 +172,57 @@ const Home = () => {
             </div>
           </div>
 
+          {/* Search Bar - MOVED BELOW CATEGORIES */}
+          <div className="px-4 py-2">
+            <div className="relative">
+              <Search className="absolute left-3 top-3 h-5 w-5 text-muted-foreground" />
+              <Input
+                placeholder="Search products, suppliers, or descriptions..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10 pr-10"
+              />
+              {searchQuery && (
+                <motion.button
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.8 }}
+                  onClick={clearSearch}
+                  className="absolute right-3 top-3 h-5 w-5 text-muted-foreground hover:text-foreground transition-colors"
+                  aria-label="Clear search"
+                >
+                  <X className="h-5 w-5" />
+                </motion.button>
+              )}
+            </div>
+            
+            {/* Search Results Summary */}
+            {/* {searchQuery && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mt-2"
+              >
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-muted-foreground">
+                    {filteredProducts.length} {filteredProducts.length === 1 ? 'result' : 'results'} for "{searchQuery}"
+                  </p>
+                  {filteredProducts.length === 0 && productsList.length > 0 && (
+                    <button
+                      onClick={clearSearch}
+                      className="text-sm text-primary hover:underline"
+                    >
+                      Clear search
+                    </button>
+                  )}
+                </div>
+              </motion.div>
+            )} */}
+          </div>
+
           {/* Products Grid */}
           <div className="p-4">
             {productsLoading ? (
-              // Loading state for products
               <div className="grid grid-cols-2 gap-4">
                 {[1, 2, 3, 4, 5, 6].map((item) => (
                   <div key={item} className="bg-muted rounded-lg p-4 animate-pulse">
@@ -190,7 +233,6 @@ const Home = () => {
                 ))}
               </div>
             ) : (
-              // Actual products when loaded
               <div className="grid grid-cols-2 gap-4">
                 {filteredProducts.map((product, index) => (
                   <motion.div
@@ -207,12 +249,33 @@ const Home = () => {
 
             {!productsLoading && filteredProducts.length === 0 && (
               <div className="text-center py-12 text-muted-foreground">
-                <p>No products found</p>
-                {productsList.length > 0 && (
-                  <p className="text-sm mt-2">
-                    Try selecting a different category or clearing your search
+                <div className="mb-4">
+                  <Search className="h-12 w-12 mx-auto text-muted-foreground/50" />
+                </div>
+                <p className="text-lg font-medium mb-2">No products found</p>
+                {searchQuery ? (
+                  <p className="text-sm">
+                    No results for "{searchQuery}" in {selectedCategory === 'all' ? 'all categories' : 'this category'}
                   </p>
+                ) : (
+                  <p className="text-sm">Try selecting a different category</p>
                 )}
+                <div className="mt-4 space-x-2">
+                  <button
+                    onClick={() => setSelectedCategory('all')}
+                    className="px-4 py-2 bg-primary text-primary-foreground rounded-full text-sm font-medium"
+                  >
+                    View All Products
+                  </button>
+                  {searchQuery && (
+                    <button
+                      onClick={clearSearch}
+                      className="px-4 py-2 bg-muted text-foreground rounded-full text-sm font-medium"
+                    >
+                      Clear Search
+                    </button>
+                  )}
+                </div>
               </div>
             )}
           </div>
