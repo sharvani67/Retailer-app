@@ -1,10 +1,10 @@
 import { motion } from 'framer-motion';
-import { User, Building2, Mail, Package, Heart, LogOut, ChevronRight, Clock } from 'lucide-react';
+import { User, Building2, Mail, Package, Heart, LogOut, UserCheck, ChevronRight, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import TabBar from '@/components/TabBar';
 import { useApp } from '@/contexts/AppContext';
 import { useNavigate } from 'react-router-dom';
-import { useState } from 'react';
+
 
 const Profile = () => {
   const { user, logout, orders, wishlist } = useApp();
@@ -12,7 +12,7 @@ const Profile = () => {
 
 
 
- 
+
 
   const handleLogout = () => {
     logout();
@@ -61,6 +61,7 @@ const Profile = () => {
             <div className="flex-1">
               <h2 className="text-xl font-bold">{user?.name}</h2>
               <p className="text-muted-foreground">{user?.business_name}</p>
+
             </div>
           </div>
 
@@ -72,6 +73,10 @@ const Profile = () => {
             <div className="flex items-center gap-3 text-sm">
               <Building2 className="h-4 w-4 text-muted-foreground" />
               <span>{user?.business_name}</span>
+            </div>
+            <div className="flex items-center gap-3 text-sm">
+              <UserCheck className="h-4 w-4 text-muted-foreground" />
+              <span>Assigned_staff : {user?.assigned_staff}</span>
             </div>
           </div>
         </motion.div>
@@ -112,7 +117,7 @@ const Profile = () => {
           })}
         </motion.div>
 
-      
+
 
         {/* Logout Button */}
         <motion.div

@@ -19,6 +19,8 @@ export interface User {
   shipping_pin_code: string;
   shipping_state: string;
   shipping_country: string;
+  staffid: string;
+  assigned_staff: string;
 }
 
 interface AppContextType {

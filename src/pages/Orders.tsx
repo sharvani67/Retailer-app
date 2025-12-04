@@ -147,9 +147,8 @@ const Orders = () => {
   const handleViewDetails = (order: ApiOrder) => {
     navigate('/order-tracking', { 
       state: { 
-        orderId: order.id,
         orderNumber: order.order_number,
-        orderData: order
+        
       } 
     });
   };

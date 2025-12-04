@@ -7,6 +7,7 @@ import TabBar from '@/components/TabBar';
 import { useState, useEffect } from 'react';
 import { baseurl } from '@/Api/Baseurl';
 import flourImage from '@/assets/flour-product.jpg';
+
 const getProductImage = (item: OrderItem) => {
   return flourImage;
 };
@@ -24,6 +25,15 @@ interface OrderItem {
   sale_price?: number;
   discount_percentage?: number;
   discount_amount?: number;
+  taxable_amount?: number;
+  tax_percentage?: number;
+  tax_amount?: number;
+  item_total?: number;
+  sgst_percentage?: number;
+  sgst_amount?: number;
+  cgst_percentage?: number;
+  cgst_amount?: number;
+  discount_applied_scheme?: string;
 }
 
 interface ApiOrder {
@@ -31,16 +41,25 @@ interface ApiOrder {
   order_number: string;
   customer_id: string;
   customer_name: string;
-  order_total: number;
-  discount_amount: number;
-  taxable_amount: number;
-  tax_amount: number;
-  net_payable: number;
+  order_total: number | string;
+  discount_amount: number | string;
+  taxable_amount: number | string;
+  tax_amount: number | string;
+  net_payable: number | string;
   credit_period: number;
   status: string;
   estimated_delivery_date: string;
   created_at: string;
   order_placed_by: string;
+  ordered_by?: string;
+  staff_id?: string;
+  assigned_staff?: string;
+  order_mode?: string;
+  invoice_number?: string | null;
+  invoice_date?: string | null;
+  invoice_status?: number;
+  order_status?: string;
+  updated_at?: string;
   items?: OrderItem[];
 }
 
@@ -49,23 +68,15 @@ const OrderTracking = () => {
   const location = useLocation();
   const { user } = useApp();
 
-  // ✅ Get values from navigation
-  const orderId = location.state?.orderId;
+  // Get order number from navigation state
   const orderNumber = location.state?.orderNumber;
-  const orderData = location.state?.orderData;
-  
-  const [order, setOrder] = useState<ApiOrder | null>(orderData || null);
-  const [loading, setLoading] = useState(!orderData);
+  const [order, setOrder] = useState<ApiOrder | null>(null);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch order details from API if not passed via state
+  // Fetch order details from API
   useEffect(() => {
     const fetchOrderDetails = async () => {
-      if (orderData) {
-        setOrder(orderData);
-        return;
-      }
-
       if (!orderNumber) {
         setError('Order number not found');
         setLoading(false);
@@ -83,10 +94,43 @@ const OrderTracking = () => {
         }
         
         const data = await response.json();
-        setOrder({
+        
+        if (!data.order) {
+          throw new Error('Order not found');
+        }
+        
+        // Transform API response to match our interface
+        const transformedOrder: ApiOrder = {
           ...data.order,
-          items: data.items || []
-        });
+          // Ensure status field exists (use order_status from API if status doesn't exist)
+          status: data.order.status || data.order.order_status || 'pending',
+          // Parse string numbers to numbers for calculations
+          order_total: parseFloat(data.order.order_total) || 0,
+          discount_amount: parseFloat(data.order.discount_amount) || 0,
+          taxable_amount: parseFloat(data.order.taxable_amount) || 0,
+          tax_amount: parseFloat(data.order.tax_amount) || 0,
+          net_payable: parseFloat(data.order.net_payable) || 0,
+          credit_period: parseInt(data.order.credit_period) || 0,
+          items: data.items?.map((item: any) => ({
+            ...item,
+            price: parseFloat(item.price) || 0,
+            quantity: parseInt(item.quantity) || 0,
+            total_amount: parseFloat(item.total_amount) || 0,
+            mrp: parseFloat(item.mrp) || 0,
+            sale_price: parseFloat(item.sale_price) || 0,
+            discount_amount: parseFloat(item.discount_amount) || 0,
+            discount_percentage: parseFloat(item.discount_percentage) || 0,
+            taxable_amount: parseFloat(item.taxable_amount) || 0,
+            tax_amount: parseFloat(item.tax_amount) || 0,
+            item_total: parseFloat(item.item_total) || 0,
+            sgst_amount: parseFloat(item.sgst_amount) || 0,
+            cgst_amount: parseFloat(item.cgst_amount) || 0,
+            credit_period: parseInt(item.credit_period) || 0,
+            credit_percentage: parseFloat(item.credit_percentage) || 0,
+          })) || []
+        };
+        
+        setOrder(transformedOrder);
       } catch (err) {
         console.error('Error fetching order details:', err);
         setError(err instanceof Error ? err.message : 'Failed to load order details');
@@ -96,8 +140,46 @@ const OrderTracking = () => {
     };
 
     fetchOrderDetails();
-  }, [orderNumber, orderData]);
+  }, [orderNumber]);
 
+  // Update status mapping based on API order_status
+  const getStatusKey = (status: string = ''): string => {
+    const statusMap: Record<string, string> = {
+      'Pending': 'pending',
+      'Confirmed': 'confirmed',
+      'Packed': 'packed',
+      'Shipped': 'shipped',
+      'Out for Delivery': 'out_for_delivery',
+      'Delivered': 'delivered'
+    };
+    
+    return statusMap[status] || status.toLowerCase() || 'pending';
+  };
+
+  // Format date for display
+  const formatDate = (dateString: string) => {
+    try {
+      return new Date(dateString).toLocaleDateString('en-IN', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch {
+      return 'Date not available';
+    }
+  };
+
+  // Calculate numeric values safely
+  const getNumericValue = (value: string | number | undefined): number => {
+    if (typeof value === 'string') return parseFloat(value) || 0;
+    if (typeof value === 'number') return value;
+    return 0;
+  };
+
+  // Loading state
   if (loading) {
     return (
       <div className="min-h-screen bg-background pb-6">
@@ -131,6 +213,7 @@ const OrderTracking = () => {
     );
   }
 
+  // Error state or no order
   if (error || !order) {
     return (
       <div className="min-h-screen bg-background pb-6">
@@ -167,40 +250,34 @@ const OrderTracking = () => {
     );
   }
 
-  // Status configuration
+  // Now we can safely access order properties since we've returned early if order is null
+  const currentStatusKey = getStatusKey(order?.status);
+  
   const statuses = [
     { key: 'pending', label: 'Order Placed', icon: CheckCircle, completed: true },
-    { key: 'confirmed', label: 'Confirmed', icon: CheckCircle, completed: ['confirmed', 'packed', 'shipped', 'out_for_delivery', 'delivered'].includes(order.status) },
-    { key: 'packed', label: 'Packed', icon: Package, completed: ['packed', 'shipped', 'out_for_delivery', 'delivered'].includes(order.status) },
-    { key: 'shipped', label: 'Shipped', icon: Truck, completed: ['shipped', 'out_for_delivery', 'delivered'].includes(order.status) },
-    { key: 'out_for_delivery', label: 'Out for Delivery', icon: Truck, completed: ['out_for_delivery', 'delivered'].includes(order.status) },
-    { key: 'delivered', label: 'Delivered', icon: HomeIcon, completed: order.status === 'delivered' },
+    { key: 'confirmed', label: 'Confirmed', icon: CheckCircle, completed: ['confirmed', 'packed', 'shipped', 'out_for_delivery', 'delivered'].includes(currentStatusKey) },
+    { key: 'packed', label: 'Packed', icon: Package, completed: ['packed', 'shipped', 'out_for_delivery', 'delivered'].includes(currentStatusKey) },
+    { key: 'shipped', label: 'Shipped', icon: Truck, completed: ['shipped', 'out_for_delivery', 'delivered'].includes(currentStatusKey) },
+    { key: 'out_for_delivery', label: 'Out for Delivery', icon: Truck, completed: ['out_for_delivery', 'delivered'].includes(currentStatusKey) },
+    { key: 'delivered', label: 'Delivered', icon: HomeIcon, completed: currentStatusKey === 'delivered' },
   ];
 
-  const currentStatusIndex = statuses.findIndex((s) => s.key === order.status);
-
-  // Format date for display
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-IN', {
-      weekday: 'long',
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
+  const currentStatusIndex = statuses.findIndex((s) => s.key === currentStatusKey);
 
   // Get estimated delivery date
   const getEstimatedDelivery = () => {
-    if (order.estimated_delivery_date) {
+    if (order?.estimated_delivery_date) {
       return formatDate(order.estimated_delivery_date);
     }
     
     // Fallback: add 5 days to order date
-    const orderDate = new Date(order.created_at);
-    const estimatedDate = new Date(orderDate.setDate(orderDate.getDate() + 5));
-    return formatDate(estimatedDate.toISOString());
+    if (order?.created_at) {
+      const orderDate = new Date(order.created_at);
+      const estimatedDate = new Date(orderDate.setDate(orderDate.getDate() + 5));
+      return formatDate(estimatedDate.toISOString());
+    }
+    
+    return 'Not estimated yet';
   };
 
   return (
@@ -234,8 +311,15 @@ const OrderTracking = () => {
             </div>
             <div className="text-right">
               <p className="text-sm text-muted-foreground">Total Amount</p>
-              <p className="text-xl font-bold">₹{order.net_payable?.toLocaleString() || order.order_total?.toLocaleString() || '0'}</p>
+              <p className="text-xl font-bold">
+                ₹{getNumericValue(order.net_payable).toLocaleString('en-IN')}
+              </p>
             </div>
+          </div>
+
+          {/* Order Status Badge */}
+          <div className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-primary/10 text-primary">
+            {order.status || order.order_status || 'Pending'}
           </div>
 
           {/* Order Date */}
@@ -257,7 +341,35 @@ const OrderTracking = () => {
             </p>
           </div>
 
-       
+          {/* Order Mode and Staff Info */}
+          <div className="border-t border-border pt-4 grid grid-cols-2 gap-4">
+            {order.order_mode && (
+              <div>
+                <p className="text-sm text-muted-foreground mb-1">Order Mode</p>
+                <p className="font-semibold">{order.order_mode}</p>
+              </div>
+            )}
+            
+            
+              <div>
+                <p className="text-sm text-muted-foreground mb-1">Ordered By</p>
+                <p className="font-semibold">{order.ordered_by}</p>
+              </div>
+           
+          </div>
+
+          {/* Invoice Info */}
+          {order.invoice_number && (
+            <div className="border-t border-border pt-4">
+              <p className="text-sm text-muted-foreground mb-1">Invoice Number</p>
+              <p className="font-mono font-semibold">{order.invoice_number}</p>
+              {order.invoice_date && (
+                <p className="text-sm text-muted-foreground mt-1">
+                  Invoice Date: {formatDate(order.invoice_date)}
+                </p>
+              )}
+            </div>
+          )}
         </motion.div>
 
         {/* 🚚 Tracking Timeline */}
@@ -336,58 +448,86 @@ const OrderTracking = () => {
           <h2 className="text-lg font-semibold mb-4">Order Items ({order.items?.length || 0})</h2>
           <div className="space-y-4">
             {order.items && order.items.length > 0 ? (
-              order.items.map((item, index) => (
-                <div
-                  key={item.id || index}
-                  className="flex items-center gap-4 pb-4 border-b border-border last:border-0 last:pb-0"
-                >
-                  {/* Product Image Placeholder */}
-                 <img
-  src={getProductImage(item)}
-  alt={item.item_name || 'Product'}
-  className="w-16 h-16 object-cover rounded-lg bg-muted"
-  onError={(e) => {
-    (e.target as HTMLImageElement).src = flourImage;
-  }}
-/>
-                  
-                  <div className="flex-1">
-                    <p className="font-semibold line-clamp-2">{item.item_name || 'Product'}</p>
-                    <div className="flex items-center gap-4 mt-1 text-sm text-muted-foreground">
-                      <span>Qty: {item.quantity}</span>
-                      <span>₹{item.price?.toLocaleString()}/unit</span>
-                    </div>
+              order.items.map((item, index) => {
+                const itemPrice = getNumericValue(item.price);
+                const itemMRP = getNumericValue(item.mrp);
+                const itemTotal = getNumericValue(item.total_amount) || getNumericValue(item.item_total);
+                const discountAmount = getNumericValue(item.discount_amount);
+                const taxAmount = getNumericValue(item.tax_amount);
+                
+                return (
+                  <div
+                    key={item.id || index}
+                    className="flex items-center gap-4 pb-4 border-b border-border last:border-0 last:pb-0"
+                  >
+                    {/* Product Image Placeholder */}
+                    <img
+                      src={getProductImage(item)}
+                      alt={item.item_name || 'Product'}
+                      className="w-16 h-16 object-cover rounded-lg bg-muted"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = flourImage;
+                      }}
+                    />
                     
-                    {/* Price Breakdown */}
-                    <div className="flex items-center justify-between mt-2">
-                      <div className="text-sm">
-                        {item.mrp && item.mrp > item.price && (
-                          <span className="text-muted-foreground line-through mr-2">
-                            ₹{item.mrp.toLocaleString()}
-                          </span>
-                        )}
-                        <span className="font-semibold text-green-600">
-                          ₹{item.total_amount?.toLocaleString()}
-                        </span>
+                    <div className="flex-1">
+                      <p className="font-semibold line-clamp-2">{item.item_name || 'Product'}</p>
+                      <div className="flex items-center gap-4 mt-1 text-sm text-muted-foreground">
+                        <span>Qty: {item.quantity}</span>
+                        <span>₹{itemPrice.toLocaleString('en-IN')}/unit</span>
                       </div>
                       
-                      {/* Credit Info */}
-                      {item.credit_period > 0 && (
-                        <span className="text-xs bg-orange-100 text-orange-800 px-2 py-1 rounded-full">
-                          {item.credit_period}d credit
-                        </span>
+                      {/* Price Breakdown */}
+                      <div className="flex items-center justify-between mt-2">
+                        <div className="text-sm">
+                          {itemMRP > itemPrice && (
+                            <span className="text-muted-foreground line-through mr-2">
+                              ₹{itemMRP.toLocaleString('en-IN')}
+                            </span>
+                          )}
+                          <span className="font-semibold text-green-600">
+                            ₹{itemTotal.toLocaleString('en-IN')}
+                          </span>
+                        </div>
+                        
+                        {/* Credit Info */}
+                        {item.credit_period > 0 && (
+                          <span className="text-xs bg-orange-100 text-orange-800 px-2 py-1 rounded-full">
+                            {item.credit_period}d credit
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Discount Info */}
+                      {discountAmount > 0 && (
+                        <div className="text-xs text-green-600 mt-1">
+                          {item.discount_percentage}% discount (₹{discountAmount.toLocaleString('en-IN')})
+                        </div>
+                      )}
+
+                      {/* Tax Info */}
+                      {taxAmount > 0 && (
+                        <div className="text-xs text-blue-600 mt-1">
+                          Tax: ₹{taxAmount.toLocaleString('en-IN')}
+                          {item.sgst_amount && item.cgst_amount && (
+                            <span className="text-muted-foreground ml-2">
+                              (SGST: ₹{getNumericValue(item.sgst_amount).toLocaleString('en-IN')}, 
+                              CGST: ₹{getNumericValue(item.cgst_amount).toLocaleString('en-IN')})
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Discount Scheme */}
+                      {item.discount_applied_scheme && (
+                        <div className="text-xs text-purple-600 mt-1">
+                          Scheme: {item.discount_applied_scheme}
+                        </div>
                       )}
                     </div>
-
-                    {/* Discount Info */}
-                    {item.discount_percentage && item.discount_percentage > 0 && (
-                      <div className="text-xs text-green-600 mt-1">
-                        {item.discount_percentage}% discount applied
-                      </div>
-                    )}
                   </div>
-                </div>
-              ))
+                );
+              })
             ) : (
               <div className="text-center py-8 text-muted-foreground">
                 <Package className="h-12 w-12 mx-auto mb-3 opacity-50" />
@@ -401,50 +541,43 @@ const OrderTracking = () => {
             <div className="border-t border-border mt-4 pt-4 space-y-2">
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Subtotal</span>
-                <span>₹{order.order_total?.toLocaleString()}</span>
+                <span>₹{getNumericValue(order.order_total).toLocaleString('en-IN')}</span>
               </div>
               
-              {order.discount_amount > 0 && (
+              {getNumericValue(order.discount_amount) > 0 && (
                 <div className="flex justify-between text-sm text-green-600">
                   <span>Discount</span>
-                  <span>-₹{order.discount_amount?.toLocaleString()}</span>
+                  <span>-₹{getNumericValue(order.discount_amount).toLocaleString('en-IN')}</span>
                 </div>
               )}
               
-              {order.tax_amount > 0 && (
+              {getNumericValue(order.taxable_amount) > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Taxable Amount</span>
+                  <span>₹{getNumericValue(order.taxable_amount).toLocaleString('en-IN')}</span>
+                </div>
+              )}
+              
+              {getNumericValue(order.tax_amount) > 0 && (
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Tax</span>
-                  <span>+₹{order.tax_amount?.toLocaleString()}</span>
+                  <span>+₹{getNumericValue(order.tax_amount).toLocaleString('en-IN')}</span>
                 </div>
               )}
               
               <div className="flex justify-between text-lg font-bold pt-2 border-t border-border">
-                <span>Total</span>
-                <span className="text-primary">₹{order.net_payable?.toLocaleString()}</span>
+                <span>Total Payable</span>
+                <span className="text-primary">₹{getNumericValue(order.net_payable).toLocaleString('en-IN')}</span>
               </div>
+              
+              {order.credit_period > 0 && (
+                <div className="flex justify-between text-sm text-orange-600 pt-2">
+                  <span>Credit Period</span>
+                  <span>{order.credit_period} days</span>
+                </div>
+              )}
             </div>
           )}
-        </motion.div>
-
-        {/* 🧭 Action Buttons */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="flex gap-3"
-        >
-          <Button
-            onClick={() => navigate('/home')}
-            variant="outline"
-            size="lg"
-            className="flex-1"
-          >
-            Continue Shopping
-          </Button>
-          <Button variant="secondary" size="lg" className="flex-1">
-            <Phone className="h-5 w-5 mr-2" />
-            Contact Support
-          </Button>
         </motion.div>
       </main>
 

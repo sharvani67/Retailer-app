@@ -184,7 +184,10 @@ const Checkout = () => {
         credit_period: averageCreditPeriod,
         estimated_delivery_date: new Date(Date.now() + 5 * 86400000).toISOString().split('T')[0],
         order_placed_by: parseInt(user.id),
-        order_mode: orderMode
+        ordered_by: user.name,
+        staffid : parseInt(user.staffid),
+        assigned_staff : user.assigned_staff,
+        order_mode : orderMode
       };
 
       console.log('Order Data:', orderData);
