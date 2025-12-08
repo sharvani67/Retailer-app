@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { Package, ChevronRight, Download, RefreshCw, X } from 'lucide-react';
+import { Package, ChevronRight, Download, RefreshCw, X, Check, X as XIcon } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import TabBar from '@/components/TabBar';
@@ -48,6 +48,7 @@ interface ApiOrder {
   order_placed_by: string;
   order_status: string;
   invoice_status: number;
+  approval_status?: string; // 'Pending', 'Approved', 'Rejected'
   items?: OrderItem[];
 }
 
@@ -58,6 +59,7 @@ const Orders = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [cancellingOrder, setCancellingOrder] = useState<string | null>(null);
+  const [updatingApproval, setUpdatingApproval] = useState<string | null>(null);
 
   // Fetch orders from API
   const fetchOrders = async () => {
@@ -131,6 +133,20 @@ const Orders = () => {
     }
   };
 
+  const getApprovalStatusColor = (status: string) => {
+    const statusLower = status?.toLowerCase();
+    switch (statusLower) {
+      case 'approved':
+        return 'bg-green-100 text-green-800 border-green-200';
+      case 'rejected':
+        return 'bg-red-100 text-red-800 border-red-200';
+      case 'pending':
+        return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      default:
+        return 'bg-gray-100 text-gray-800 border-gray-200';
+    }
+  };
+
   const getStatusLabel = (status: string) => {
     if (!status) return 'Pending';
     
@@ -148,14 +164,70 @@ const Orders = () => {
     navigate('/order-tracking', { 
       state: { 
         orderNumber: order.order_number,
-        
       } 
     });
   };
 
   // Check if order can be cancelled
   const canCancelOrder = (order: ApiOrder) => {
-    return order.invoice_status === 0 && order.order_status?.toLowerCase() === 'pending';
+    return order.invoice_status === 0 && 
+           order.order_status?.toLowerCase() === 'pending' &&
+           order.order_placed_by === user?.id;
+  };
+
+  // Check if order needs approval (placed by someone else)
+  const needsApproval = (order: ApiOrder) => {
+    return order.order_placed_by !== user?.id && 
+           (!order.approval_status || order.approval_status === 'Pending');
+  };
+
+  // Check if order is pending approval
+  const isPendingApproval = (order: ApiOrder) => {
+    return needsApproval(order) && 
+           (!order.approval_status || order.approval_status === 'Pending');
+  };
+
+  // Check if user has already approved/rejected
+  const hasDecidedApproval = (order: ApiOrder) => {
+    return order.order_placed_by !== user?.id && 
+           order.approval_status && 
+           order.approval_status !== 'Pending';
+  };
+
+  // Update approval status
+  const handleUpdateApproval = async (orderNumber: string, approvalStatus: 'Approved' | 'Rejected') => {
+    try {
+      setUpdatingApproval(`${orderNumber}-${approvalStatus.toLowerCase()}`);
+      
+      const response = await fetch(`${baseurl}/orders/update-approval-status/${orderNumber}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ approval_status: approvalStatus }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to update approval status');
+      }
+
+      // Update the approval status locally
+      setOrders(prevOrders => 
+        prevOrders.map(order => 
+          order.order_number === orderNumber 
+            ? { ...order, approval_status: approvalStatus }
+            : order
+        )
+      );
+
+      return await response.json();
+    } catch (err) {
+      console.error('Error updating approval status:', err);
+      throw err;
+    } finally {
+      setUpdatingApproval(null);
+    }
   };
 
   // Cancel order function
@@ -216,6 +288,7 @@ const Orders = () => {
     return formatDate(estimatedDate.toISOString());
   };
 
+  // Loading state
   if (loading) {
     return (
       <div className="min-h-screen bg-background pb-20">
@@ -242,6 +315,7 @@ const Orders = () => {
     );
   }
 
+  // Error state
   if (error) {
     return (
       <div className="min-h-screen bg-background pb-20">
@@ -272,6 +346,7 @@ const Orders = () => {
     );
   }
 
+  // No orders state
   if (orders.length === 0) {
     return (
       <div className="min-h-screen bg-background pb-20">
@@ -343,10 +418,31 @@ const Orders = () => {
                 <p className="text-sm text-muted-foreground">Order ID</p>
                 <p className="font-mono font-semibold text-primary">{order.order_number}</p>
               </div>
-              <Badge className={`${getStatusColor(order.order_status || order.status)} border`}>
-                {getStatusLabel(order.order_status || order.status)}
-              </Badge>
+              <div className="flex flex-col items-end gap-2">
+                <Badge className={`${getStatusColor(order.order_status || order.status)} border`}>
+                  {getStatusLabel(order.order_status || order.status)}
+                </Badge>
+                
+                {/* Show approval status if order was placed by someone else */}
+                {order.order_placed_by !== user?.id && order.approval_status && (
+                  <Badge className={`${getApprovalStatusColor(order.approval_status)} border text-xs`}>
+                    {order.approval_status}
+                  </Badge>
+                )}
+              </div>
             </div>
+
+            {/* Order Placed By Info */}
+            {order.order_placed_by !== user?.id && (
+              <div className="mb-4 p-3 bg-muted/50 rounded-lg">
+                <p className="text-sm text-muted-foreground">
+                  Placed by: <span className="font-medium text-foreground">{order.order_placed_by}</span>
+                </p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  This order was placed on your behalf and requires your approval.
+                </p>
+              </div>
+            )}
 
             {/* Order Summary */}
             <div className="flex items-center justify-between">
@@ -363,83 +459,159 @@ const Orders = () => {
               </div>
             </div>
 
-            {/* Action Buttons */}
-            <div className="mt-4 space-y-2">
-              {/* Download Invoice Button - Show only if invoice_status is 1 */}
-              {order.invoice_status === 1 && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  // onClick={() => handleDownloadInvoice(order)}
-                  className="w-full flex items-center justify-center gap-2"
-                >
-                  <Download className="h-4 w-4" />
-                  Download Invoice
-                </Button>
-              )}
-
-              {/* Cancel Order Button - Show only if invoice_status is 0 and order_status is pending */}
-              {canCancelOrder(order) && (
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      disabled={cancellingOrder === order.order_number}
-                      className="w-full flex items-center justify-center gap-2"
-                    >
-                      {cancellingOrder === order.order_number ? (
-                        <>
-                          <motion.div
-                            animate={{ rotate: 360 }}
-                            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                          >
-                            <RefreshCw className="h-4 w-4" />
-                          </motion.div>
-                          Cancelling...
-                        </>
-                      ) : (
-                        <>
-                          <X className="h-4 w-4" />
-                          Cancel Order
-                        </>
-                      )}
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Cancel Order</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        Are you sure you want to cancel order <span className="font-semibold">{order.order_number}</span>? 
-                        This action cannot be undone.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Keep Order</AlertDialogCancel>
-                      <AlertDialogAction
-                        onClick={async () => {
-                          try {
-                            await handleCancelOrder(order.order_number);
-                          } catch (error) {
-                            alert(error instanceof Error ? error.message : 'Failed to cancel order');
-                          }
-                        }}
-                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            {/* Approval Actions (if order placed by someone else) */}
+            {isPendingApproval(order) && (
+              <div className="mt-4 p-4 border border-yellow-200 bg-yellow-50 rounded-lg">
+                <p className="text-sm font-medium text-yellow-800 mb-3">
+                  This order requires your approval to proceed
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={() => handleUpdateApproval(order.order_number, 'Approved')}
+                    disabled={updatingApproval === `${order.order_number}-approved`}
+                    className="flex-1 bg-green-600 hover:bg-green-700"
+                  >
+                    {updatingApproval === `${order.order_number}-approved` ? (
+                      <>
+                        <motion.div
+                          animate={{ rotate: 360 }}
+                          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                          className="mr-2"
+                        >
+                          <RefreshCw className="h-3 w-3" />
+                        </motion.div>
+                        Approving...
+                      </>
+                    ) : (
+                      <>
+                        <Check className="h-4 w-4 mr-2" />
+                        Approve Order
+                      </>
+                    )}
+                  </Button>
+                  
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        className="flex-1"
                       >
-                        Yes, Cancel Order
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              )}
-            </div>
+                        <XIcon className="h-4 w-4 mr-2" />
+                        Reject Order
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Reject Order</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Are you sure you want to reject order <span className="font-semibold">{order.order_number}</span>? 
+                          This order will not proceed further.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={async () => {
+                            try {
+                              await handleUpdateApproval(order.order_number, 'Rejected');
+                            } catch (error) {
+                              alert(error instanceof Error ? error.message : 'Failed to reject order');
+                            }
+                          }}
+                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                          disabled={updatingApproval === `${order.order_number}-rejected`}
+                        >
+                          {updatingApproval === `${order.order_number}-rejected` ? 'Rejecting...' : 'Yes, Reject Order'}
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
+              </div>
+            )}
+
+            {/* Action Buttons (for orders placed by user) */}
+            {order.order_placed_by === user?.id && (
+              <div className="mt-4 space-y-2">
+                {/* Download Invoice Button - Show only if invoice_status is 1 */}
+                {order.invoice_status === 1 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    // onClick={() => handleDownloadInvoice(order)}
+                    className="w-full flex items-center justify-center gap-2"
+                  >
+                    <Download className="h-4 w-4" />
+                    Download Invoice
+                  </Button>
+                )}
+
+                {/* Cancel Order Button - Show only if invoice_status is 0 and order_status is pending */}
+                {canCancelOrder(order) && (
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        disabled={cancellingOrder === order.order_number}
+                        className="w-full flex items-center justify-center gap-2"
+                      >
+                        {cancellingOrder === order.order_number ? (
+                          <>
+                            <motion.div
+                              animate={{ rotate: 360 }}
+                              transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                            >
+                              <RefreshCw className="h-4 w-4" />
+                            </motion.div>
+                            Cancelling...
+                          </>
+                        ) : (
+                          <>
+                            <X className="h-4 w-4" />
+                            Cancel Order
+                          </>
+                        )}
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Cancel Order</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Are you sure you want to cancel order <span className="font-semibold">{order.order_number}</span>? 
+                          This action cannot be undone.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Keep Order</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={async () => {
+                            try {
+                              await handleCancelOrder(order.order_number);
+                            } catch (error) {
+                              alert(error instanceof Error ? error.message : 'Failed to cancel order');
+                            }
+                          }}
+                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        >
+                          Yes, Cancel Order
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                )}
+              </div>
+            )}
 
             {/* Footer */}
             <div className="mt-3 pt-3 border-t border-border flex justify-between text-xs text-muted-foreground">
               <span>
                 Ordered on {formatDate(order.created_at)}
               </span>
-              {order.order_status?.toLowerCase() !== 'cancelled' && (
+              {order.order_status?.toLowerCase() !== 'cancelled' && !hasDecidedApproval(order) && (
                 <span>
                   Est. Delivery: {getEstimatedDelivery(order)}
                 </span>

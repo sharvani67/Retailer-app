@@ -187,7 +187,8 @@ const Checkout = () => {
         ordered_by: user.name,
         staffid : parseInt(user.staffid),
         assigned_staff : user.assigned_staff,
-        order_mode : orderMode
+        order_mode : orderMode,
+        approval_status : "Approved"
       };
 
       console.log('Order Data:', orderData);
