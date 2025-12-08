@@ -1,18 +1,13 @@
 import { motion } from 'framer-motion';
-import { User, Building2, Mail, Package, Heart, LogOut, UserCheck, ChevronRight, Clock } from 'lucide-react';
+import { User, Building2, Mail, Package, Heart, LogOut, UserCheck, ChevronRight, Clock, Warehouse } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import TabBar from '@/components/TabBar';
 import { useApp } from '@/contexts/AppContext';
 import { useNavigate } from 'react-router-dom';
 
-
 const Profile = () => {
   const { user, logout, orders, wishlist } = useApp();
   const navigate = useNavigate();
-
-
-
-
 
   const handleLogout = () => {
     logout();
@@ -26,6 +21,13 @@ const Profile = () => {
       value: orders.length,
       onClick: () => navigate('/orders'),
       gradient: 'from-blue-500 to-indigo-500',
+    },
+    {
+      icon: Warehouse,
+      label: 'Inventory',
+      value: 0, // You can update this with actual inventory count
+      onClick: () => navigate('/inventory'),
+      gradient: 'from-green-500 to-emerald-500',
     },
     // {
     //   icon: Heart,
@@ -61,7 +63,6 @@ const Profile = () => {
             <div className="flex-1">
               <h2 className="text-xl font-bold">{user?.name}</h2>
               <p className="text-muted-foreground">{user?.business_name}</p>
-
             </div>
           </div>
 
@@ -108,7 +109,7 @@ const Profile = () => {
                   </div>
                   <div className="flex-1 text-left">
                     <p className="font-semibold">{item.label}</p>
-                    {/* <p className="text-sm text-muted-foreground">{item.value} items</p> */}
+                    <p className="text-sm text-muted-foreground">{item.value} items</p>
                   </div>
                   <ChevronRight className="h-5 w-5 text-muted-foreground" />
                 </div>
@@ -116,8 +117,6 @@ const Profile = () => {
             );
           })}
         </motion.div>
-
-
 
         {/* Logout Button */}
         <motion.div

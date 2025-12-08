@@ -20,6 +20,9 @@ import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound";
 import ForgotPassword from "./pages/ForgotPassword/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword/ResetPassword";
+// Add this import
+import Inventory from '@/pages/Inventory';
+
 
 const queryClient = new QueryClient();
 
@@ -46,6 +49,7 @@ const App = () => (
             <Route path="/order-tracking" element={<OrderTracking />} />
             <Route path="/orders" element={<Orders />} />
             <Route path="/profile" element={<Profile />} />
+            <Route path="/inventory" element={<Inventory />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
