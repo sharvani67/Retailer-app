@@ -46,6 +46,7 @@ interface ApiOrder {
   estimated_delivery_date: string;
   created_at: string;
   order_placed_by: string;
+  ordered_by: string;
   order_status: string;
   invoice_status: number;
   approval_status?: string; // 'Pending', 'Approved', 'Rejected'
@@ -170,9 +171,19 @@ const Orders = () => {
 
   // Check if order can be cancelled
   const canCancelOrder = (order: ApiOrder) => {
-    return order.invoice_status === 0 && 
-           order.order_status?.toLowerCase() === 'pending' &&
-           order.order_placed_by === user?.id;
+    // For orders placed by user
+    if (order.order_placed_by === user?.id) {
+      return order.invoice_status === 0 && 
+             order.order_status?.toLowerCase() === 'pending';
+    }
+    
+    // For orders placed by someone else, only if approved
+    if (order.order_placed_by !== user?.id && order.approval_status === 'Approved') {
+      return order.invoice_status === 0 && 
+             order.order_status?.toLowerCase() === 'pending';
+    }
+    
+    return false;
   };
 
   // Check if order needs approval (placed by someone else)
@@ -185,6 +196,18 @@ const Orders = () => {
   const isPendingApproval = (order: ApiOrder) => {
     return needsApproval(order) && 
            (!order.approval_status || order.approval_status === 'Pending');
+  };
+
+  // Check if order is approved (placed by someone else)
+  const isApprovedOrder = (order: ApiOrder) => {
+    return order.order_placed_by !== user?.id && 
+           order.approval_status === 'Approved';
+  };
+
+  // Check if order is rejected (placed by someone else)
+  const isRejectedOrder = (order: ApiOrder) => {
+    return order.order_placed_by !== user?.id && 
+           order.approval_status === 'Rejected';
   };
 
   // Check if user has already approved/rejected
@@ -432,18 +455,6 @@ const Orders = () => {
               </div>
             </div>
 
-            {/* Order Placed By Info */}
-            {order.order_placed_by !== user?.id && (
-              <div className="mb-4 p-3 bg-muted/50 rounded-lg">
-                <p className="text-sm text-muted-foreground">
-                  Placed by: <span className="font-medium text-foreground">{order.order_placed_by}</span>
-                </p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  This order was placed on your behalf and requires your approval.
-                </p>
-              </div>
-            )}
-
             {/* Order Summary */}
             <div className="flex items-center justify-between">
               <div>
@@ -459,11 +470,11 @@ const Orders = () => {
               </div>
             </div>
 
-            {/* Approval Actions (if order placed by someone else) */}
+            {/* Approval Actions (if order placed by someone else and pending) */}
             {isPendingApproval(order) && (
               <div className="mt-4 p-4 border border-yellow-200 bg-yellow-50 rounded-lg">
                 <p className="text-sm font-medium text-yellow-800 mb-3">
-                  This order requires your approval to proceed
+                  This order placed by {order.ordered_by}, requires your approval to proceed
                 </p>
                 <div className="flex gap-2">
                   <Button
@@ -533,8 +544,8 @@ const Orders = () => {
               </div>
             )}
 
-            {/* Action Buttons (for orders placed by user) */}
-            {order.order_placed_by === user?.id && (
+            {/* Action Buttons (for orders placed by user OR approved orders placed by others) */}
+            {(order.order_placed_by === user?.id || isApprovedOrder(order)) && (
               <div className="mt-4 space-y-2">
                 {/* Download Invoice Button - Show only if invoice_status is 1 */}
                 {order.invoice_status === 1 && (
@@ -606,12 +617,26 @@ const Orders = () => {
               </div>
             )}
 
-            {/* Footer */}
+            {/* Rejection Message (for rejected orders) */}
+            {isRejectedOrder(order) && (
+              <div className="mt-4 p-3 border border-red-200 bg-red-50 rounded-lg">
+                <p className="text-sm font-medium text-red-800">
+                  You have rejected this order. It will not proceed further.
+                </p>
+              </div>
+            )}
+
+            {/* Footer with Estimated Delivery */}
             <div className="mt-3 pt-3 border-t border-border flex justify-between text-xs text-muted-foreground">
               <span>
                 Ordered on {formatDate(order.created_at)}
               </span>
-              {order.order_status?.toLowerCase() !== 'cancelled' && !hasDecidedApproval(order) && (
+              {/* Show Estimated Delivery only for:
+                  1. Orders placed by user OR
+                  2. Approved orders placed by others OR
+                  3. Orders not cancelled */}
+              {(order.order_placed_by === user?.id || isApprovedOrder(order)) && 
+               order.order_status?.toLowerCase() !== 'cancelled' && (
                 <span>
                   Est. Delivery: {getEstimatedDelivery(order)}
                 </span>
