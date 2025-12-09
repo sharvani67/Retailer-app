@@ -210,13 +210,6 @@ const Inventory = () => {
               <h1 className="text-2xl font-bold">Inventory</h1>
               <p className="text-sm text-muted-foreground">Manage your products</p>
             </div>
-            <Button
-              size="icon"
-              className="rounded-full gradient-primary"
-              onClick={() => {/* Handle add new product */}}
-            >
-              <Plus className="h-5 w-5" />
-            </Button>
           </div>
         </div>
       </header>
@@ -251,26 +244,7 @@ const Inventory = () => {
             )}
           </div>
 
-          {/* Category Filter */}
-          {/* <div className="flex gap-2 overflow-x-auto pb-2">
-            {categories.map((category) => (
-              <Button
-                key={category}
-                variant={selectedCategory === category ? "default" : "outline"}
-                size="sm"
-                className={`rounded-full whitespace-nowrap ${
-                  selectedCategory === category ? 'gradient-primary' : ''
-                }`}
-                onClick={() => {
-                  setSelectedCategory(category);
-                  setCurrentPage(1); // Reset to first page when changing category
-                }}
-              >
-                {category}
-              </Button>
-            ))}
-          </div> */}
-
+        
           {/* Statistics Cards */}
           <div className="grid grid-cols-2 gap-3">
             <motion.div
@@ -469,22 +443,6 @@ const Inventory = () => {
           )}
         </motion.div>
 
-        {/* Add Product Button */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="sticky bottom-24"
-        >
-          <Button
-            className="w-full rounded-2xl gradient-primary shadow-lg"
-            size="lg"
-            onClick={() => {/* Handle add product */}}
-          >
-            <Plus className="h-5 w-5 mr-2" />
-            Add New Product
-          </Button>
-        </motion.div>
       </main>
 
       <TabBar />
