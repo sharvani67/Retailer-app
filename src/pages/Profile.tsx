@@ -109,7 +109,7 @@ const Profile = () => {
                   </div>
                   <div className="flex-1 text-left">
                     <p className="font-semibold">{item.label}</p>
-                    <p className="text-sm text-muted-foreground">{item.value} items</p>
+                   
                   </div>
                   <ChevronRight className="h-5 w-5 text-muted-foreground" />
                 </div>
