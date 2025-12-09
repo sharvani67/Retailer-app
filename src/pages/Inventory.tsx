@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import TabBar from '@/components/TabBar';
 import { Input } from '@/components/ui/input';
 import { useNavigate } from 'react-router-dom';
+import { baseurl } from '@/Api/Baseurl';
 
 interface Product {
   id?: number;
@@ -22,7 +23,7 @@ const Inventory = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const categories = ['All', 'Home Accessories', 'Mobile', 'Electronics', 'Fashion', 'Home & Kitchen', 'Books', 'Sports', 'Beauty'];
+  
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -34,7 +35,7 @@ const Inventory = () => {
       try {
         setLoading(true);
         setError(null);
-        const response = await fetch('http://localhost:5000/api/inventory');
+        const response = await fetch(`${baseurl}/api/inventory`);
         
         if (!response.ok) {
           throw new Error(`Failed to fetch: ${response.status}`);
@@ -151,27 +152,6 @@ const Inventory = () => {
     // You could refetch here if needed
   };
 
-  // Add a Category Filter Bar
-  const CategoryFilter = () => (
-    <div className="flex gap-2 overflow-x-auto pb-2">
-      {categories.map((category) => (
-        <Button
-          key={category}
-          variant={selectedCategory === category ? "default" : "outline"}
-          size="sm"
-          className={`text-xs rounded-full whitespace-nowrap ${
-            selectedCategory === category ? 'gradient-primary' : ''
-          }`}
-          onClick={() => {
-            setSelectedCategory(category);
-            setCurrentPage(1);
-          }}
-        >
-          {category}
-        </Button>
-      ))}
-    </div>
-  );
 
   return (
     <div className="min-h-screen bg-background pb-24">
@@ -216,10 +196,7 @@ const Inventory = () => {
               </button>
             )}
           </div>
-
-          {/* Category Filter */}
-          <CategoryFilter />
-            
+  
         </motion.div>
 
         {/* Inventory Table */}
