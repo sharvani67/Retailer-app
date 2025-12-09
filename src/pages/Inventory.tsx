@@ -1,137 +1,80 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Warehouse, Search, Plus, ChevronRight, ChevronLeft, ChevronsLeft, ChevronsRight } from 'lucide-react';
+import { Warehouse, Search, Plus, ChevronRight, ChevronLeft, ChevronsLeft, ChevronsRight, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import TabBar from '@/components/TabBar';
 import { Input } from '@/components/ui/input';
 import { useNavigate } from 'react-router-dom';
 
+interface Product {
+  id?: number;
+  sNo?: number;
+  category_name: string;
+  product_name: string;
+  available_quantity: number;
+  unit?: string;
+  lowStock?: boolean;
+}
+
 const Inventory = () => {
   const navigate = useNavigate();
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Sample inventory data
-  const inventoryItems = [
-    {
-      id: 1,
-      sNo: 1,
-      categoryName: 'Electronics',
-      productName: 'iPhone 15 Pro',
-      stockAvailable: 24,
-      unit: 'pcs',
-      lowStock: false,
-    },
-    {
-      id: 2,
-      sNo: 2,
-      categoryName: 'Electronics',
-      productName: 'MacBook Air M2',
-      stockAvailable: 12,
-      unit: 'pcs',
-      lowStock: false,
-    },
-    {
-      id: 3,
-      sNo: 3,
-      categoryName: 'Fashion',
-      productName: 'Men\'s T-Shirt',
-      stockAvailable: 5,
-      unit: 'pcs',
-      lowStock: true,
-    },
-    {
-      id: 4,
-      sNo: 4,
-      categoryName: 'Home & Kitchen',
-      productName: 'Coffee Maker',
-      stockAvailable: 8,
-      unit: 'pcs',
-      lowStock: false,
-    },
-    {
-      id: 5,
-      sNo: 5,
-      categoryName: 'Books',
-      productName: 'React Development Guide',
-      stockAvailable: 0,
-      unit: 'pcs',
-      lowStock: true,
-    },
-    {
-      id: 6,
-      sNo: 6,
-      categoryName: 'Sports',
-      productName: 'Yoga Mat',
-      stockAvailable: 15,
-      unit: 'pcs',
-      lowStock: false,
-    },
-    {
-      id: 7,
-      sNo: 7,
-      categoryName: 'Beauty',
-      productName: 'Face Cream',
-      stockAvailable: 3,
-      unit: 'units',
-      lowStock: true,
-    },
-    {
-      id: 8,
-      sNo: 8,
-      categoryName: 'Electronics',
-      productName: 'Wireless Earbuds',
-      stockAvailable: 32,
-      unit: 'pairs',
-      lowStock: false,
-    },
-    {
-      id: 9,
-      sNo: 9,
-      categoryName: 'Electronics',
-      productName: 'Smart Watch',
-      stockAvailable: 18,
-      unit: 'pcs',
-      lowStock: false,
-    },
-    {
-      id: 10,
-      sNo: 10,
-      categoryName: 'Fashion',
-      productName: 'Women\'s Handbag',
-      stockAvailable: 7,
-      unit: 'pcs',
-      lowStock: true,
-    },
-    {
-      id: 11,
-      sNo: 11,
-      categoryName: 'Home & Kitchen',
-      productName: 'Air Fryer',
-      stockAvailable: 14,
-      unit: 'pcs',
-      lowStock: false,
-    },
-    {
-      id: 12,
-      sNo: 12,
-      categoryName: 'Books',
-      productName: 'JavaScript Mastery',
-      stockAvailable: 22,
-      unit: 'pcs',
-      lowStock: false,
-    },
-  ];
-
-  const categories = ['All', 'Electronics', 'Fashion', 'Home & Kitchen', 'Books', 'Sports', 'Beauty'];
+  const categories = ['All', 'Home Accessories', 'Mobile', 'Electronics', 'Fashion', 'Home & Kitchen', 'Books', 'Sports', 'Beauty'];
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
 
+  // Fetch products from API
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const response = await fetch('http://localhost:5000/api/inventory');
+        
+        if (!response.ok) {
+          throw new Error(`Failed to fetch: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        if (data.success && data.data) {
+          // Transform API data to match our component structure
+          const transformedProducts = data.data.map((product: Product, index: number) => ({
+            id: index + 1,
+            sNo: index + 1,
+            category_name: product.category_name,
+            product_name: product.product_name,
+            available_quantity: product.available_quantity,
+            unit: 'pcs', // Default unit
+            lowStock: product.available_quantity <= 5, // Mark as low stock if quantity <= 5
+          }));
+          setProducts(transformedProducts);
+        } else {
+          throw new Error('Invalid API response format');
+        }
+      } catch (err) {
+        console.error('Error fetching products:', err);
+        setError('Failed to load products. Please try again.');
+        // Optionally, you can keep some sample data for demo purposes
+        setProducts([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProducts();
+  }, []);
+
   // Filter items based on category and search
-  const filteredItems = inventoryItems.filter(item => {
-    const matchesCategory = selectedCategory === 'All' || item.categoryName === selectedCategory;
-    const matchesSearch = item.productName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         item.categoryName.toLowerCase().includes(searchQuery.toLowerCase());
+  const filteredItems = products.filter(item => {
+    const matchesCategory = selectedCategory === 'All' || item.category_name === selectedCategory;
+    const matchesSearch = item.product_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                         item.category_name.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesCategory && matchesSearch;
   });
 
@@ -200,6 +143,36 @@ const Inventory = () => {
     return pageNumbers;
   };
 
+  // Handle retry fetching
+  const handleRetry = () => {
+    setCurrentPage(1);
+    setSearchQuery('');
+    setSelectedCategory('All');
+    // You could refetch here if needed
+  };
+
+  // Add a Category Filter Bar
+  const CategoryFilter = () => (
+    <div className="flex gap-2 overflow-x-auto pb-2">
+      {categories.map((category) => (
+        <Button
+          key={category}
+          variant={selectedCategory === category ? "default" : "outline"}
+          size="sm"
+          className={`text-xs rounded-full whitespace-nowrap ${
+            selectedCategory === category ? 'gradient-primary' : ''
+          }`}
+          onClick={() => {
+            setSelectedCategory(category);
+            setCurrentPage(1);
+          }}
+        >
+          {category}
+        </Button>
+      ))}
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-background pb-24">
       {/* Header */}
@@ -231,7 +204,7 @@ const Inventory = () => {
               value={searchQuery}
               onChange={(e) => {
                 setSearchQuery(e.target.value);
-                setCurrentPage(1); // Reset to first page when searching
+                setCurrentPage(1);
               }}
             />
             {searchQuery && (
@@ -244,29 +217,9 @@ const Inventory = () => {
             )}
           </div>
 
-        
-          {/* Statistics Cards */}
-          <div className="grid grid-cols-2 gap-3">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="bg-gradient-to-br from-blue-500/10 to-indigo-500/10 rounded-2xl p-4 border border-border"
-            >
-              <p className="text-sm text-muted-foreground">Total Products</p>
-              <p className="text-2xl font-bold">{filteredItems.length}</p>
-            </motion.div>
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.1 }}
-              className="bg-gradient-to-br from-green-500/10 to-emerald-500/10 rounded-2xl p-4 border border-border"
-            >
-              <p className="text-sm text-muted-foreground">In Stock</p>
-              <p className="text-2xl font-bold">
-                {filteredItems.filter(item => item.stockAvailable > 0).length}
-              </p>
-            </motion.div>
-          </div>
+          {/* Category Filter */}
+          <CategoryFilter />
+            
         </motion.div>
 
         {/* Inventory Table */}
@@ -286,7 +239,25 @@ const Inventory = () => {
 
           {/* Table Body */}
           <div className="divide-y divide-border max-h-[400px] overflow-y-auto">
-            {currentItems.length > 0 ? (
+            {loading ? (
+              <div className="p-8 text-center">
+                <Loader2 className="h-12 w-12 mx-auto text-primary animate-spin mb-2" />
+                <p className="text-muted-foreground">Loading products...</p>
+              </div>
+            ) : error ? (
+              <div className="p-8 text-center">
+                <Warehouse className="h-12 w-12 mx-auto text-red-500/50 mb-2" />
+                <p className="text-red-500">{error}</p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-4"
+                  onClick={handleRetry}
+                >
+                  Try Again
+                </Button>
+              </div>
+            ) : currentItems.length > 0 ? (
               currentItems.map((item, index) => (
                 <motion.div
                   key={item.id}
@@ -302,18 +273,18 @@ const Inventory = () => {
                   </div>
                   <div className="col-span-4">
                     <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full">
-                      {item.categoryName}
+                      {item.category_name}
                     </span>
                   </div>
                   <div className="col-span-4">
-                    <p className="text-sm font-medium truncate">{item.productName}</p>
+                    <p className="text-sm font-medium truncate">{item.product_name}</p>
                   </div>
                   <div className="col-span-3 text-right">
-                    <p className={`text-sm font-bold ${getStockColor(item.stockAvailable, item.lowStock)}`}>
-                      {item.stockAvailable} {item.unit}
+                    <p className={`text-sm font-bold ${getStockColor(item.available_quantity, item.lowStock || false)}`}>
+                      {item.available_quantity} {item.unit || 'pcs'}
                     </p>
-                    <p className={`text-xs ${getStockColor(item.stockAvailable, item.lowStock)}`}>
-                      {getStockStatusText(item.stockAvailable, item.lowStock)}
+                    <p className={`text-xs ${getStockColor(item.available_quantity, item.lowStock || false)}`}>
+                      {getStockStatusText(item.available_quantity, item.lowStock || false)}
                     </p>
                   </div>
                 </motion.div>
@@ -332,7 +303,7 @@ const Inventory = () => {
           </div>
 
           {/* Pagination Controls */}
-          {filteredItems.length > itemsPerPage && (
+          {!loading && !error && filteredItems.length > itemsPerPage && (
             <div className="p-4 border-t border-border">
               <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
                 {/* Page Info */}
@@ -431,7 +402,7 @@ const Inventory = () => {
           )}
 
           {/* Footer for when no pagination needed */}
-          {filteredItems.length <= itemsPerPage && filteredItems.length > 0 && (
+          {!loading && !error && filteredItems.length <= itemsPerPage && filteredItems.length > 0 && (
             <div className="p-4 border-t border-border">
               <div className="flex items-center justify-between text-sm text-muted-foreground">
                 <span>Showing all {filteredItems.length} products</span>
@@ -442,7 +413,6 @@ const Inventory = () => {
             </div>
           )}
         </motion.div>
-
       </main>
 
       <TabBar />
