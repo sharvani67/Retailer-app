@@ -160,117 +160,147 @@ const Checkout = () => {
   };
 
   // Enhanced place order function
-  const handlePlaceOrder = async () => {
-    if (!user) {
-      alert('Please login to place an order');
-      return;
-    }
+// Enhanced place order function
+const handlePlaceOrder = async () => {
+  if (!user) {
+    alert('Please login to place an order');
+    return;
+  }
 
-    try {
-      // Generate order number
-      const orderNumber = `ORD${Date.now()}`;
-      const averageCreditPeriod = calculateAverageCreditPeriod(cartItems);
-      
-      // Create order data for backend
-      const orderData = {
-        order_number: orderNumber,
-        customer_id: parseInt(user.id),
-        customer_name: address.name,
-        order_total: creditBreakdown.finalTotal,
-        discount_amount: creditBreakdown.totalDiscount,
-        taxable_amount: creditBreakdown.subtotal + creditBreakdown.totalCreditCharges,
-        tax_amount: creditBreakdown.totalTax,
-        net_payable: creditBreakdown.finalTotal,
-        credit_period: averageCreditPeriod,
-        estimated_delivery_date: new Date(Date.now() + 5 * 86400000).toISOString().split('T')[0],
-        order_placed_by: parseInt(user.id),
-        ordered_by: user.name,
-        staffid : parseInt(user.staffid),
-        assigned_staff : user.assigned_staff,
-        order_mode : orderMode,
-        approval_status : "Approved"
-      };
-
-      console.log('Order Data:', orderData);
-
-      // Prepare order items with proper calculations
-      const orderItems = cartItems.map(item => {
-        const breakdown = calculateItemBreakdown(item);
-        const itemPrice = parseFloat(item.product.price);
-        const gstRate = parseFloat(item.product.gst_rate) || 0;
-        const isInclusiveGST = item.product.inclusive_gst === "Inclusive";
-        
-        // Split GST 50/50 for SGST and CGST
-        const sgstPercentage = gstRate / 2;
-        const cgstPercentage = gstRate / 2;
-        const sgstAmount = breakdown.taxAmount / 2;
-        const cgstAmount = breakdown.taxAmount / 2;
-
-        return {
-          product_id: parseInt(item.product.id),
-          item_name: item.product.name,
-          mrp: itemPrice, // Maximum Retail Price
-          sale_price: itemPrice, // Selling Price
-          price: itemPrice * (item.priceMultiplier || 1), // Price after credit
-          quantity: item.quantity,
-          total_amount: (itemPrice * item.quantity * (item.priceMultiplier || 1)),
-          discount_percentage: userDiscountPercentage,
-          discount_amount: breakdown.discountAmount,
-          taxable_amount: breakdown.taxableAmount,
-          tax_percentage: gstRate,
-          tax_amount: breakdown.taxAmount,
-          item_total: breakdown.finalPayableAmount,
-          credit_period: parseInt(item.creditPeriod) || 0,
-          credit_percentage: item.creditPercentage || 0,
-          sgst_percentage: sgstPercentage,
-          sgst_amount: sgstAmount,
-          cgst_percentage: cgstPercentage,
-          cgst_amount: cgstAmount,
-          discount_applied_scheme: userDiscountPercentage > 0 ? 'user_discount' : 'none'
-        };
-      });
-
-      console.log('Order Items:', orderItems);
-
-      // Send to backend
-      const orderResponse = await fetch(`${baseurl}/orders/create-complete-order`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          order: orderData,
-          orderItems: orderItems
-        })
-      });
-
-      if (!orderResponse.ok) {
-        const errorData = await orderResponse.json();
-        throw new Error(errorData.message || 'Failed to create order');
+  try {
+    // Fetch staff information from accounts table
+    let staff_incentive = 0;
+    let assigned_staff = "Unassigned";
+    
+    if (user.staffid) {
+      try {
+        const staffResponse = await fetch(`${baseurl}/accounts/${user.staffid}`);
+        if (staffResponse.ok) {
+          const staffData = await staffResponse.json();
+          
+          // Check if staffData has the expected structure
+          if (staffData && typeof staffData === 'object') {
+            // Assuming the accounts table has these fields
+            staff_incentive = (staffData.incentive_percent) || 0;
+            assigned_staff = staffData.name ;
+          }
+        } else {
+          console.warn('Failed to fetch staff details, using defaults');
+        }
+      } catch (staffErr) {
+        console.error('Error fetching staff details:', staffErr);
+        // Continue with default values
       }
-
-      const orderResult = await orderResponse.json();
-      console.log('Order Response:', orderResult);
-      
-      // Clear cart after successful order
-      await clearCart();
-
-      // Navigate to confirmation page
-      navigate('/order-confirmation', {
-        state: { 
-          orderId: orderResult.order_number || orderData.order_number, 
-          orderNumber: orderResult.order_number,
-          total: creditBreakdown.finalTotal,
-          creditBreakdown,
-          orderMode
-        },
-      });
-
-    } catch (error) {
-      console.error('Error placing order:', error);
-      alert(`Failed to place order: ${error.message}`);
     }
-  };
+
+    // Generate order number
+    const orderNumber = `ORD${Date.now()}`;
+    const averageCreditPeriod = calculateAverageCreditPeriod(cartItems);
+    
+    // Create order data for backend
+    const orderData = {
+      order_number: orderNumber,
+      customer_id: parseInt(user.id),
+      customer_name: address.name,
+      order_total: creditBreakdown.finalTotal,
+      discount_amount: creditBreakdown.totalDiscount,
+      taxable_amount: creditBreakdown.subtotal + creditBreakdown.totalCreditCharges,
+      tax_amount: creditBreakdown.totalTax,
+      net_payable: creditBreakdown.finalTotal,
+      credit_period: averageCreditPeriod,
+      estimated_delivery_date: new Date(Date.now() + 5 * 86400000).toISOString().split('T')[0],
+      order_placed_by: parseInt(user.id),
+      ordered_by: user.name,
+      staffid: parseInt(user.staffid),
+      assigned_staff: assigned_staff, // Use fetched staff name
+      order_mode: orderMode,
+      approval_status: "Approved",
+      staff_incentive: staff_incentive // Use fetched incentive percentage
+    };
+
+    console.log('Order Data:', orderData);
+    console.log('Staff Details - Name:', assigned_staff, 'Incentive %:', staff_incentive);
+
+    // Prepare order items with proper calculations
+    const orderItems = cartItems.map(item => {
+      const breakdown = calculateItemBreakdown(item);
+      const itemPrice = parseFloat(item.product.price);
+      const gstRate = parseFloat(item.product.gst_rate) || 0;
+      const isInclusiveGST = item.product.inclusive_gst === "Inclusive";
+      
+      // Split GST 50/50 for SGST and CGST
+      const sgstPercentage = gstRate / 2;
+      const cgstPercentage = gstRate / 2;
+      const sgstAmount = breakdown.taxAmount / 2;
+      const cgstAmount = breakdown.taxAmount / 2;
+
+      return {
+        product_id: parseInt(item.product.id),
+        item_name: item.product.name,
+        mrp: itemPrice, // Maximum Retail Price
+        sale_price: itemPrice, // Selling Price
+        price: itemPrice * (item.priceMultiplier || 1), // Price after credit
+        quantity: item.quantity,
+        total_amount: (itemPrice * item.quantity * (item.priceMultiplier || 1)),
+        discount_percentage: userDiscountPercentage,
+        discount_amount: breakdown.discountAmount,
+        taxable_amount: breakdown.taxableAmount,
+        tax_percentage: gstRate,
+        tax_amount: breakdown.taxAmount,
+        item_total: breakdown.finalPayableAmount,
+        credit_period: parseInt(item.creditPeriod) || 0,
+        credit_percentage: item.creditPercentage || 0,
+        sgst_percentage: sgstPercentage,
+        sgst_amount: sgstAmount,
+        cgst_percentage: cgstPercentage,
+        cgst_amount: cgstAmount,
+        discount_applied_scheme: userDiscountPercentage > 0 ? 'user_discount' : 'none'
+      };
+    });
+
+    console.log('Order Items:', orderItems);
+
+    // Send to backend
+    const orderResponse = await fetch(`${baseurl}/orders/create-complete-order`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        order: orderData,
+        orderItems: orderItems
+      })
+    });
+
+    if (!orderResponse.ok) {
+      const errorData = await orderResponse.json();
+      throw new Error(errorData.message || 'Failed to create order');
+    }
+
+    const orderResult = await orderResponse.json();
+    console.log('Order Response:', orderResult);
+    
+    // Clear cart after successful order
+    await clearCart();
+
+    // Navigate to confirmation page
+    navigate('/order-confirmation', {
+      state: { 
+        orderId: orderResult.order_number || orderData.order_number, 
+        orderNumber: orderResult.order_number,
+        total: creditBreakdown.finalTotal,
+        creditBreakdown,
+        orderMode,
+        staffName: assigned_staff,
+        staffIncentive: staff_incentive
+      },
+    });
+
+  } catch (error) {
+    console.error('Error placing order:', error);
+    alert(`Failed to place order: ${error.message}`);
+  }
+};
 
   return (
     <div className="min-h-screen bg-background pb-6">

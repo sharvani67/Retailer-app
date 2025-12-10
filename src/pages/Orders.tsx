@@ -498,7 +498,7 @@ const Orders = () => {
                     ) : (
                       <>
                         <Check className="h-4 w-4 mr-2" />
-                        Approve Order
+                        Approve
                       </>
                     )}
                   </Button>
@@ -511,7 +511,7 @@ const Orders = () => {
                         className="flex-1"
                       >
                         <XIcon className="h-4 w-4 mr-2" />
-                        Reject Order
+                        Reject
                       </Button>
                     </AlertDialogTrigger>
                     <AlertDialogContent>
