@@ -110,20 +110,20 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const fetchCreditPeriods = async (): Promise<void> => {
     try {
       const response = await fetch(`${baseurl}/api/credit-period-fix/credit`);
-      
+
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      
+
       const result = await response.json();
-      
+
       if (result.success && result.data) {
         const transformedPeriods = result.data.map((period: any) => ({
           days: parseInt(period.credit_period),
           percentage: parseInt(period.credit_percentage),
           multiplier: 1 + (parseInt(period.credit_percentage) / 100)
         }));
-        
+
         setCreditPeriods(transformedPeriods);
       } else {
         // Fallback to default periods
@@ -146,37 +146,37 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       setCartLoading(true);
       const response = await fetch(`${baseurl}/api/cart/customer-cart/${user.id}`);
       if (!response.ok) throw new Error('Failed to fetch cart');
-      
+
       const cartItems = await response.json();
-      
+
       // If cart is empty, clear local state
       if (!cartItems || cartItems.length === 0) {
         setCart([]);
         localStorage.removeItem("appCart");
         return;
       }
-      
+
       // First, fetch all products at once to get complete data
       const productsResponse = await fetch(`${baseurl}/get-sales-products`);
       if (!productsResponse.ok) throw new Error('Failed to fetch products');
-      
+
       const allProducts = await productsResponse.json();
-      
+
       // Create a map for quick lookup
       const productMap = new Map();
       allProducts.forEach((product: any) => {
         productMap.set(product.id.toString(), product);
       });
-      
+
       // Transform backend cart items to frontend format
       const transformedCart = cartItems.map((item: any) => {
         const productData = productMap.get(item.product_id.toString());
-        
+
         if (!productData) {
           console.warn(`Product ${item.product_id} not found in products list`);
           return null;
         }
-        
+
         return {
           id: item.id,
           product: {
@@ -198,11 +198,11 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           creditPercentage: item.credit_percentage || 0
         };
       });
-      
+
       // Filter out any failed items and update cart
       const validCartItems = transformedCart.filter(item => item !== null) as CartItem[];
       setCart(validCartItems);
-      
+
     } catch (error) {
       console.error('Error syncing cart:', error);
       // Keep existing cart from localStorage if sync fails
@@ -220,19 +220,19 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
     try {
       setCartLoading(true);
-      
+
       // Check if product already exists in cart (local check first)
       const existingItemIndex = cart.findIndex(item => item.product.id === product.id);
-      
+
       if (existingItemIndex >= 0) {
         // Update quantity locally first for immediate feedback
         const updatedCart = [...cart];
         updatedCart[existingItemIndex].quantity += quantity;
         setCart(updatedCart);
-        
+
         // Show notification
         toast.success(`${product.name} quantity updated in cart!`);
-        
+
         // Update in backend
         const existingItem = cart[existingItemIndex];
         if (existingItem.id) {
@@ -241,10 +241,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ quantity: updatedCart[existingItemIndex].quantity })
           });
-          
+
           if (!response.ok) throw new Error('Failed to update quantity in backend');
         }
-        
+
         return;
       }
 
@@ -276,11 +276,11 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         priceMultiplier: 1,
         creditPercentage: 0
       };
-      
+
       setCart(prev => [...prev, newCartItem]);
-      
+
       toast.success(`${product.name} added to cart!`);
-      
+
     } catch (error) {
       console.error('Error adding to cart:', error);
       toast.error('Failed to add item to cart');
@@ -314,7 +314,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       }
 
       toast.info("Item removed from cart");
-      
+
     } catch (error) {
       console.error('Error removing from cart:', error);
       toast.error('Failed to remove item from cart');
@@ -359,7 +359,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       // Show notification for quantity update
       const product = itemToUpdate.product;
       toast.success(`${product.name} quantity updated to ${quantity}`);
-      
+
     } catch (error) {
       console.error('Error updating quantity:', error);
       toast.error('Failed to update quantity');
@@ -394,12 +394,12 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       // Update local state first for immediate feedback
       const newCart = cart.map(item =>
         item.product.id === productId
-          ? { 
-              ...item, 
-              creditPeriod: period, 
-              priceMultiplier: multiplier,
-              creditPercentage: actualPercentage
-            }
+          ? {
+            ...item,
+            creditPeriod: period,
+            priceMultiplier: multiplier,
+            creditPercentage: actualPercentage
+          }
           : item
       );
       setCart(newCart);
@@ -419,7 +419,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       }
 
       toast.success(`Credit set to ${period} days (+${actualPercentage}%)`);
-      
+
     } catch (error) {
       console.error('Error updating credit period:', error);
       toast.error('Failed to update credit period');
