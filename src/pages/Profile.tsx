@@ -15,39 +15,37 @@ const Profile = () => {
   const [staffDetails, setStaffDetails] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  // Fetch staff details when component mounts
-  useEffect(() => {
-    const fetchStaffDetails = async () => {
-      if (!user?.staffid) {
-        console.log('No staffid found for user');
-        return;
+ useEffect(() => {
+  const fetchStaffDetails = async () => {
+    if (!user?.staffid) {
+      console.log("No staffid found for user");
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      const response = await fetch(`${baseurl}/accounts/${user.staffid}`);
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      try {
-        setLoading(true);
-        const response = await fetch(`${baseurl}/accounts/get-staff/${user.staffid}`);
-        
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
+      // Backend returns the whole account row directly (NOT inside any object)
+      const data = await response.json();
 
-        const data = await response.json();
-        
-        if (data.success && data.staff) {
-          setStaffDetails(data.staff);
-        } else {
-          console.warn('No staff details found:', data.error);
-        }
-      } catch (error) {
-        console.error('Error fetching staff details:', error);
-        toast.error('Could not load staff information');
-      } finally {
-        setLoading(false);
-      }
-    };
+      setStaffDetails(data);   // Direct object, not data.staff
+    } catch (error) {
+      console.error("Error fetching staff details:", error);
+      toast.error("Could not load staff information");
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    fetchStaffDetails();
-  }, [user?.staffid]);
+  fetchStaffDetails();
+}, [user?.staffid]);
+
 
   const handleLogout = () => {
     logout();
@@ -116,80 +114,61 @@ const Profile = () => {
         </motion.div>
 
         {/* Staff Details Card - Only show if user has staffid */}
-        {user?.staffid && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 rounded-3xl p-6 border border-border"
-          >
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white shadow-lg">
-                <Users className="h-5 w-5" />
-              </div>
-              <div>
-                <h3 className="font-bold text-lg">Your Support Contact</h3>
-                <p className="text-sm text-muted-foreground">Assigned staff for assistance</p>
-              </div>
-            </div>
+       {user?.staffid && (
+  <motion.div
+    initial={{ opacity: 0, y: 20 }}
+    animate={{ opacity: 1, y: 0 }}
+    transition={{ delay: 0.1 }}
+    className="bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 rounded-3xl p-6 border border-border"
+  >
+    <div className="flex items-center gap-3 mb-4">
+      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white shadow-lg">
+        <Users className="h-5 w-5" />
+      </div>
+      <div>
+        <h3 className="font-bold text-lg">Your Support Contact</h3>
+        
+      </div>
+    </div>
 
-            <div className="space-y-3">
-              {/* Staff ID Display */}
-              <div className="flex items-center gap-3 text-sm">
-                <UserCheck className="h-4 w-4 text-purple-500" />
-                <div>
-                  <p className="font-medium">Staff ID</p>
-                  <p className="text-muted-foreground">{user.staffid}</p>
-                </div>
-              </div>
+    <div className="space-y-3">
 
-              {/* Assigned Staff Name */}
-              {user.assigned_staff && (
-                <div className="flex items-center gap-3 text-sm">
-                  <User className="h-4 w-4 text-purple-500" />
-                  <div>
-                    <p className="font-medium">Staff Name</p>
-                    <p className="text-muted-foreground">{user.assigned_staff}</p>
-                  </div>
-                </div>
-              )}
+      {/* Staff Name */}
+      <div className="flex items-center gap-3 text-sm">
+        <User className="h-4 w-4 text-purple-500" />
+        <div>
+          <p className="font-medium">Staff Name</p>
+          <p className="text-muted-foreground">
+            {loading ? "Loading..." : staffDetails?.name || "Not available"}
+          </p>
+        </div>
+      </div>
 
-              {/* Loading State for Additional Details */}
-              {loading ? (
-                <div className="space-y-2">
-                  <Skeleton className="h-4 w-full" />
-                  <Skeleton className="h-4 w-3/4" />
-                </div>
-              ) : staffDetails ? (
-                <>
-                  {/* Staff Email */}
-                  <div className="flex items-center gap-3 text-sm">
-                    <Mail className="h-4 w-4 text-purple-500" />
-                    <div>
-                      <p className="font-medium">Email</p>
-                      <p className="text-muted-foreground">{staffDetails.email}</p>
-                    </div>
-                  </div>
+      {/* Staff Email */}
+      <div className="flex items-center gap-3 text-sm">
+        <Mail className="h-4 w-4 text-purple-500" />
+        <div>
+          <p className="font-medium">Email</p>
+          <p className="text-muted-foreground">
+            {loading ? "Loading..." : staffDetails?.email || "Not available"}
+          </p>
+        </div>
+      </div>
 
-                  {/* Staff Phone */}
-                  <div className="flex items-center gap-3 text-sm">
-                    <Phone className="h-4 w-4 text-purple-500" />
-                    <div>
-                      <p className="font-medium">Mobile</p>
-                      <p className="text-muted-foreground">{staffDetails.phone_number || staffDetails.mobile}</p>
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <div className="text-center py-2">
-                  <p className="text-sm text-muted-foreground">
-                    Additional contact details not available
-                  </p>
-                </div>
-              )}
-            </div>
-          </motion.div>
-        )}
+      {/* Staff Phone */}
+      <div className="flex items-center gap-3 text-sm">
+        <Phone className="h-4 w-4 text-purple-500" />
+        <div>
+          <p className="font-medium">Mobile</p>
+          <p className="text-muted-foreground">
+            {loading ? "Loading..." : staffDetails?.phone_number || staffDetails?.mobile_number || "Not available"}
+          </p>
+        </div>
+      </div>
+    </div>
+  </motion.div>
+)}
+
 
         {/* Menu Items */}
         <motion.div
