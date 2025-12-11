@@ -169,6 +169,15 @@ const Orders = () => {
     });
   };
 
+
+   const handleDownloadInvoice = (orderNumber: string) => {
+    navigate('/invoice-download', { 
+      state: { 
+        orderNumber: orderNumber,
+      } 
+    });
+  };
+
   // Check if order can be cancelled
   const canCancelOrder = (order: ApiOrder) => {
     // For orders placed by user
@@ -552,11 +561,11 @@ const Orders = () => {
                   <Button
                     variant="outline"
                     size="sm"
-                    // onClick={() => handleDownloadInvoice(order)}
+                    onClick={() => handleDownloadInvoice(order.order_number)}
                     className="w-full flex items-center justify-center gap-2"
                   >
                     <Download className="h-4 w-4" />
-                    Download Invoice
+                    Download Invoice{order.items && order.items.length > 1 ? 's' : ''}
                   </Button>
                 )}
 
@@ -631,10 +640,6 @@ const Orders = () => {
               <span>
                 Ordered on {formatDate(order.created_at)}
               </span>
-              {/* Show Estimated Delivery only for:
-                  1. Orders placed by user OR
-                  2. Approved orders placed by others OR
-                  3. Orders not cancelled */}
               {(order.order_placed_by === user?.id || isApprovedOrder(order)) && 
                order.order_status?.toLowerCase() !== 'cancelled' && (
                 <span>

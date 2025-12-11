@@ -22,6 +22,7 @@ import ForgotPassword from "./pages/ForgotPassword/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword/ResetPassword";
 // Add this import
 import Inventory from '@/pages/Inventory';
+import InvoiceDownload from "./pages/InvoiceDownload";
 
 
 const queryClient = new QueryClient();
@@ -50,6 +51,7 @@ const App = () => (
             <Route path="/orders" element={<Orders />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/inventory" element={<Inventory />} />
+            <Route path="/invoice-download" element={<InvoiceDownload />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
