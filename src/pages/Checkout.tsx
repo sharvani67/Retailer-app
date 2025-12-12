@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState ,useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowLeft, MapPin, CreditCard, Tag, ChevronDown } from 'lucide-react';
@@ -13,31 +13,74 @@ const Checkout = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { cart, user, clearCart } = useApp();
+
+  const [userDetails, setUserDetails] = useState<any>(null);
+const [loadingUser, setLoadingUser] = useState(true);
+
+useEffect(() => {
+  const fetchUserDetails = async () => {
+    if (!user?.id) return;
+
+    try {
+      const res = await fetch(`${baseurl}/accounts/${user.id}`);
+      if (!res.ok) throw new Error("Failed to fetch user details");
+
+      const data = await res.json();
+      console.log("Fetched user details from API:", data);
+
+      setUserDetails(data);
+
+      // Pre-fill address form using API data
+      setAddress({
+        name: data.name || "",
+        businessName: data.business_name || "",
+        phone: data.mobile_number || "",
+        addressLine:
+          `${data.shipping_address_line1 || ""}, ` +
+          `${data.shipping_address_line2 || ""}, ` +
+          `${data.shipping_city || ""}, ` +
+          `${data.shipping_state || ""} - ` +
+          `${data.shipping_pin_code || ""}, ` +
+          `${data.shipping_country || ""}`,
+        city: data.shipping_city || "",
+        pincode: data.shipping_pin_code || "",
+      });
+
+    } catch (err) {
+      console.error("Error loading user details:", err);
+    } finally {
+      setLoadingUser(false);
+    }
+  };
+
+  fetchUserDetails();
+}, [user?.id]);
+
   
   // Get checkout data from location state
   const checkoutData = location.state;
   const cartItems = checkoutData?.cartItems || cart;
   
   // Calculate user discount
-  const userDiscountPercentage = user?.discount ? parseFloat(user.discount) : 0;
+  const userDiscountPercentage = userDetails?.discount ? parseFloat(userDetails.discount) : 0;
   
   // Order Mode State
   const [orderMode, setOrderMode] = useState<'KACHA' | 'PAKKA'>('KACHA');
   
   // Address
   const [address, setAddress] = useState({
-    name: user?.name || "",
-    businessName: user?.business_name || "",
-    phone: user?.mobile_number || "",
+    name: userDetails?.name || "",
+    businessName: userDetails?.business_name || "",
+    phone: userDetails?.mobile_number || "",
     addressLine: 
-      `${user?.shipping_address_line1 || ""}, ` +
-      `${user?.shipping_address_line2 || ""}, ` +
-      `${user?.shipping_city || ""}, ` +
-      `${user?.shipping_state || ""} - ` +
-      `${user?.shipping_pin_code || ""}, ` +
-      `${user?.shipping_country || ""}`,
-    city: user?.shipping_city || "",
-    pincode: user?.shipping_pin_code || "",
+      `${userDetails?.shipping_address_line1 || ""}, ` +
+      `${userDetails?.shipping_address_line2 || ""}, ` +
+      `${userDetails?.shipping_city || ""}, ` +
+      `${userDetails?.shipping_state || ""} - ` +
+      `${userDetails?.shipping_pin_code || ""}, ` +
+      `${userDetails?.shipping_country || ""}`,
+    city: userDetails?.shipping_city || "",
+    pincode: userDetails?.shipping_pin_code || "",
   });
 
   // Calculate item breakdown (same as cart)
@@ -201,7 +244,7 @@ const handlePlaceOrder = async () => {
     const orderData = {
       order_number: orderNumber,
       customer_id: parseInt(user.id),
-      customer_name: address.name,
+      customer_name: userDetails?.name || address.name,
       order_total: creditBreakdown.finalTotal,
       discount_amount: creditBreakdown.totalDiscount,
       taxable_amount: creditBreakdown.subtotal + creditBreakdown.totalCreditCharges,
@@ -210,8 +253,8 @@ const handlePlaceOrder = async () => {
       credit_period: averageCreditPeriod,
       estimated_delivery_date: new Date(Date.now() + 5 * 86400000).toISOString().split('T')[0],
       order_placed_by: parseInt(user.id),
-      ordered_by: user.name,
-      staffid: parseInt(user.staffid),
+      ordered_by: userDetails?.name,
+      staffid: parseInt(userDetails?.staffid),
       assigned_staff: assigned_staff, // Use fetched staff name
       order_mode: orderMode,
       approval_status: "Approved",

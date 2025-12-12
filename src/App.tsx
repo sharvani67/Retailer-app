@@ -23,6 +23,7 @@ import ResetPassword from "./pages/ResetPassword/ResetPassword";
 // Add this import
 import Inventory from '@/pages/Inventory';
 import InvoiceDownload from "./pages/InvoiceDownload";
+import EditProfile from "./pages/EditProfile";
 
 
 const queryClient = new QueryClient();
@@ -52,6 +53,7 @@ const App = () => (
             <Route path="/profile" element={<Profile />} />
             <Route path="/inventory" element={<Inventory />} />
             <Route path="/invoice-download" element={<InvoiceDownload />} />
+            <Route path="/edit-profile" element={<EditProfile />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

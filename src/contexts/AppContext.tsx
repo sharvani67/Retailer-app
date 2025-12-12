@@ -53,7 +53,7 @@ interface AppContextType {
   login: (userData: User) => boolean;
   signup: (userData: User) => boolean;
   logout: () => void;
-
+setUser: (user: User | null) => void;
   // Credit periods
   fetchCreditPeriods: () => Promise<void>;
 }
@@ -584,7 +584,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         login,
         signup,
         logout,
-
+        setUser,
         fetchCreditPeriods
       }}
     >
