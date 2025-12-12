@@ -1,4 +1,4 @@
-import { Home, Heart, ShoppingCart, Package, User } from 'lucide-react';
+import { Home, Heart, ShoppingCart, Package, User, Tag } from 'lucide-react'; // Import Tag icon
 import { Link, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useApp } from '@/contexts/AppContext';
@@ -12,6 +12,7 @@ const TabBar = () => {
     // { icon: Heart, label: 'Wishlist', path: '/wishlist', badge: wishlist.length },
     { icon: ShoppingCart, label: 'Cart', path: '/cart', badge: cart.length },
     { icon: Package, label: 'Orders', path: '/orders' },
+    { icon: Tag, label: 'Offers', path: '/offers' }, // Added new Offers tab
     { icon: User, label: 'Profile', path: '/profile' },
   ];
 

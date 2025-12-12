@@ -25,6 +25,8 @@ import Inventory from '@/pages/Inventory';
 import InvoiceDownload from "./pages/InvoiceDownload";
 import EditProfile from "./pages/EditProfile";
 
+import Offers from "./pages/Offers";
+
 
 const queryClient = new QueryClient();
 
@@ -50,6 +52,7 @@ const App = () => (
             <Route path="/order-confirmation" element={<OrderConfirmation />} />
             <Route path="/order-tracking" element={<OrderTracking />} />
             <Route path="/orders" element={<Orders />} />
+             <Route path="/offers" element={<Offers />} /> 
             <Route path="/profile" element={<Profile />} />
             <Route path="/inventory" element={<Inventory />} />
             <Route path="/invoice-download" element={<InvoiceDownload />} />
