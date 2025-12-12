@@ -139,16 +139,6 @@ const Profile = () => {
           Edit Profile
         </DropdownMenuItem>
 
-     <DropdownMenuItem
-  onClick={() =>
-    navigate("/reset-password", {
-      state: { email: freshUser?.email }
-    })
-  }
->
-  <KeyRound className="mr-2 h-4 w-4" />
-  Reset Password
-</DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   </div>

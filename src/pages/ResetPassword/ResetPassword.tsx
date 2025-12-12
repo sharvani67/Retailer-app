@@ -18,16 +18,15 @@ interface ResetPasswordResponse {
 }
 
 function ResetPassword() {
-  const [oldPassword, setOldPassword] = useState("");
+  const [otp, setOtp] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
-  const [showOldPassword, setShowOldPassword] = useState(false);
-  const [showNewPassword, setShowNewPassword] = useState(false);
-
+  const [showPassword, setShowPassword] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
+
   const state = location.state as LocationState;
   const userEmail = state?.email || "";
 
@@ -38,12 +37,12 @@ function ResetPassword() {
     setMessage("");
 
     try {
-      const response = await fetch(`${baseurl}/api/retailer/reset-password`, {
+      const response = await fetch(`${baseurl}/reset-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email: userEmail,
-          oldPassword,
+          otp,
           newPassword,
         }),
       });
@@ -51,17 +50,21 @@ function ResetPassword() {
       const data: ResetPasswordResponse = await response.json();
 
       if (data.success) {
-        setMessage("Password changed successfully! Redirecting...");
+        setMessage("Password reset successfully! Redirecting to login...");
         setTimeout(() => navigate("/login"), 2000);
       } else {
-        setError(data.error || "Failed to update password.");
+        setError(data.error || "Failed to reset password. Please try again.");
       }
     } catch (err) {
-      console.error("Reset error:", err);
-      setError("Network error. Try again.");
+      console.error("Reset password error:", err);
+      setError("Network error. Please try again.");
     } finally {
       setLoading(false);
     }
+  };
+
+  const togglePasswordVisibility = () => {
+    setShowPassword(!showPassword);
   };
 
   return (
@@ -74,28 +77,35 @@ function ResetPassword() {
       >
         <div className="glass-card rounded-3xl p-8 space-y-6">
 
+          {/* Header */}
           <div className="text-center space-y-3">
             <div className="inline-flex items-center justify-center w-16 h-16 bg-primary rounded-2xl mb-2">
               <Package className="h-8 w-8 text-primary-foreground" />
             </div>
             <h1 className="text-3xl font-bold">Reset Password</h1>
+            <p className="text-muted-foreground">
+              Enter OTP and your new password
+            </p>
           </div>
 
+          {/* Success */}
           {message && (
             <div className="bg-green-500/15 text-green-600 px-4 py-3 rounded-md text-sm">
               {message}
             </div>
           )}
 
+          {/* Error */}
           {error && (
             <div className="bg-destructive/15 text-destructive px-4 py-3 rounded-md text-sm">
               {error}
             </div>
           )}
 
+          {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
 
-            {/* Email */}
+            {/* Email (read-only) */}
             <div className="space-y-2">
               <Label>Email</Label>
               <div className="relative">
@@ -109,27 +119,20 @@ function ResetPassword() {
               </div>
             </div>
 
-            {/* Old Password */}
+            {/* OTP */}
             <div className="space-y-2">
-              <Label>Old Password</Label>
+              <Label>OTP</Label>
               <div className="relative">
                 <Lock className="absolute left-3 top-3 h-5 w-5 text-muted-foreground" />
                 <Input
-                  type={showOldPassword ? "text" : "password"}
-                  placeholder="Enter old password"
-                  value={oldPassword}
-                  onChange={(e) => setOldPassword(e.target.value)}
-                  className="pl-10 pr-10"
+                  type="text"
+                  placeholder="Enter OTP"
+                  value={otp}
+                  onChange={(e) => setOtp(e.target.value)}
+                  className="pl-10"
                   required
+                  maxLength={6}
                 />
-                <button
-                  type="button"
-                  className="absolute right-3 top-3 text-muted-foreground hover:text-foreground"
-                  onClick={() => setShowOldPassword(!showOldPassword)}
-                  disabled={loading}
-                >
-                  {showOldPassword ? <EyeOff /> : <Eye />}
-                </button>
               </div>
             </div>
 
@@ -139,26 +142,35 @@ function ResetPassword() {
               <div className="relative">
                 <Lock className="absolute left-3 top-3 h-5 w-5 text-muted-foreground" />
                 <Input
-                  type={showNewPassword ? "text" : "password"}
+                  type={showPassword ? "text" : "password"}
                   placeholder="Enter new password"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                   className="pl-10 pr-10"
                   required
+                  minLength={6}
                 />
                 <button
                   type="button"
-                  className="absolute right-3 top-3 text-muted-foreground hover:text-foreground"
-                  onClick={() => setShowNewPassword(!showNewPassword)}
+                  className="absolute right-3 top-3 text-muted-foreground hover:text-foreground transition-colors"
+                  onClick={togglePasswordVisibility}
                   disabled={loading}
                 >
-                  {showNewPassword ? <EyeOff /> : <Eye />}
+                  {showPassword ? (
+                    <EyeOff className="h-5 w-5" />
+                  ) : (
+                    <Eye className="h-5 w-5" />
+                  )}
                 </button>
               </div>
             </div>
 
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Updating..." : "Reset Password"}
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={loading}
+            >
+              {loading ? "Resetting..." : "Reset Password"}
             </Button>
           </form>
         </div>
