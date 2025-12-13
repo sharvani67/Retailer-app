@@ -420,7 +420,7 @@ const Cart = () => {
                   <div className="mb-3">
                     <div className="flex items-baseline gap-2">
                       <span className="text-lg font-bold text-primary">
-                        ₹{itemTotal.toLocaleString()}
+                        ₹{item.product.price.toLocaleString()}
                       </span>
                       <span className="text-sm text-muted-foreground">
                         for {breakdown.quantity} {breakdown.quantity === 1 ? 'unit' : 'units'}
