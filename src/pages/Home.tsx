@@ -118,7 +118,7 @@ const Home = () => {
         <main className="max-w-md mx-auto">
 
           {/* Banner Carousel */}
-          <div className="p-4 space-y-3">
+          {/* <div className="p-4 space-y-3">
             {banners.map((banner, index) => (
               <motion.div
                 key={banner.id}
@@ -131,7 +131,7 @@ const Home = () => {
                 <p className="text-sm text-white/90">{banner.subtitle}</p>
               </motion.div>
             ))}
-          </div>
+          </div> */}
 
           {/* Category Slider */}
           <div className="px-4 py-2">

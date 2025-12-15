@@ -214,6 +214,7 @@ const handlePlaceOrder = async () => {
     // Fetch staff information from accounts table
     let staff_incentive = 0;
     let assigned_staff = "Unassigned";
+    let staffEmail = null;
     
     if (user.staffid) {
       try {
@@ -226,6 +227,7 @@ const handlePlaceOrder = async () => {
             // Assuming the accounts table has these fields
             staff_incentive = (staffData.incentive_percent) || 0;
             assigned_staff = staffData.name ;
+            staffEmail = staffData.email || null; 
           }
         } else {
           console.warn('Failed to fetch staff details, using defaults');
@@ -258,7 +260,9 @@ const handlePlaceOrder = async () => {
       assigned_staff: assigned_staff, // Use fetched staff name
       order_mode: orderMode,
       approval_status: "Approved",
-      staff_incentive: staff_incentive // Use fetched incentive percentage
+      staff_incentive: staff_incentive,
+      staff_email: staffEmail,
+      retailer_email: userDetails.email,
     };
 
     console.log('Order Data:', orderData);

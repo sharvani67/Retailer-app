@@ -13,7 +13,9 @@ import { baseurl } from '@/Api/Baseurl';
 interface Invoice {
   fileName: string;
   data: string;
+  status: string;
 }
+
 
 interface ApiResponse {
   success: boolean;
@@ -289,12 +291,10 @@ const InvoiceDownload = () => {
                             <FileText className="h-5 w-5 text-primary" />
                             {invoice.fileName || `Invoice ${index + 1}`}
                           </CardTitle>
-                          <CardDescription>
-                            Invoice #{index + 1} for Order {orderNumber}
-                          </CardDescription>
+                          
                         </div>
                         <Badge variant="outline" className="bg-blue-50">
-                          PDF
+                         {invoice.status}
                         </Badge>
                       </div>
                     </CardHeader>
