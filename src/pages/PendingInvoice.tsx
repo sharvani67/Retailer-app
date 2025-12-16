@@ -12,7 +12,7 @@ function PendingInvoice() {
   const fetchPendingOrders = async () => {
     try {
       setLoading(true);
-      const response = await fetch('http://localhost:5000/orders/all-orders');
+      const response = await fetch('${baseurl}/orders/all-orders');
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);

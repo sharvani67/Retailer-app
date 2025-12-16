@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import TabBar from '@/components/TabBar';
+import { baseurl } from '@/Api/Baseurl';
 
 function Receipts() {
   const [receipts, setReceipts] = useState([]);
@@ -8,28 +8,28 @@ function Receipts() {
   const [error, setError] = useState(null);
   const [retailerName, setRetailerName] = useState('Sai'); // Default retailer name
 
-  // Fetch receipts data
-  useEffect(() => {
-    const fetchReceipts = async () => {
-      try {
-        const response = await axios.get('http://localhost:5000/api/receipts');
+  // // Fetch receipts data
+  // useEffect(() => {
+  //   const fetchReceipts = async () => {
+  //     try {
+  //       const response = await fetch(`${baseurl}/api/receipts`);
         
-        // Filter receipts for the specific retailer only
-        const filteredReceipts = response.data.filter(
-          receipt => receipt.PartyName === retailerName || receipt.AccountName === retailerName
-        );
+  //       // Filter receipts for the specific retailer only
+  //       const filteredReceipts = response.data.filter(
+  //         receipt => receipt.PartyName === retailerName || receipt.AccountName === retailerName
+  //       );
         
-        setReceipts(filteredReceipts);
-        setLoading(false);
-      } catch (err) {
-        setError('Failed to fetch receipts');
-        setLoading(false);
-        console.error('Error fetching receipts:', err);
-      }
-    };
+  //       setReceipts(filteredReceipts);
+  //       setLoading(false);
+  //     } catch (err) {
+  //       setError('Failed to fetch receipts');
+  //       setLoading(false);
+  //       console.error('Error fetching receipts:', err);
+  //     }
+  //   };
 
-    fetchReceipts();
-  }, [retailerName]);
+  //   fetchReceipts();
+  // }, [retailerName]);
 
   if (loading) {
     return (

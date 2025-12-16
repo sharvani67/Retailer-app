@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Trophy, TrendingUp, CreditCard, Package, Calendar, Star, ChevronDown, ChevronUp } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
+import { baseurl } from '@/Api/Baseurl';
 
 interface ScoreDetails {
   score: number;
@@ -78,7 +79,7 @@ const RetailerScore = ({ retailerId, retailerName = 'Retailer' }: RetailerScoreP
     const fetchScore = async () => {
       try {
         setLoading(true);
-        const response = await fetch(`http://localhost:5000/api/retailer-scores/${retailerId}`);
+        const response = await fetch(`${baseurl}/api/retailer-scores/${retailerId}`);
         
         if (!response.ok) {
           throw new Error('Failed to fetch retailer score');

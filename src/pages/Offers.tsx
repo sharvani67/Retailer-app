@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { baseurl } from '@/Api/Baseurl';
 
 interface Offer {
   id: number;
@@ -68,7 +69,7 @@ const Offers = () => {
         ...filters
       });
 
-      const response = await fetch(`http://localhost:5000/api/offers?${params}`);
+      const response = await fetch(`${baseurl}/api/offers?${params}`);
       
       if (!response.ok) {
         throw new Error('Failed to fetch offers');
@@ -200,7 +201,7 @@ const Offers = () => {
     if (!url) return null;
     // If it's a relative path, prepend the base URL
     if (url.startsWith('/')) {
-      return `http://localhost:5000${url}`;
+      return `${baseurl}${url}`;
     }
     return url;
   };
