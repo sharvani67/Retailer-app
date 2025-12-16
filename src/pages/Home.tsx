@@ -8,7 +8,8 @@ import { banners, fetchCategories, fetchProducts } from '@/data/products';
 import { useApp } from '@/contexts/AppContext';
 import { useNavigate } from 'react-router-dom';
 import { Category, Product } from '@/types';
-import { toast } from "sonner"; // ADD THIS
+import { toast } from "sonner";
+import RetailerScore from './RetailerScore'; // ADD THIS IMPORT
 
 const Home = () => {
   const [selectedCategory, setSelectedCategory] = useState('all');
@@ -19,6 +20,9 @@ const Home = () => {
   const [productsLoading, setProductsLoading] = useState(true);
   const { cart, syncCartWithBackend, user } = useApp();
   const navigate = useNavigate();
+
+  // Get retailer ID from user context or use default
+  const retailerId = user?.id?.toString() || '43'; // Default to 43 for demo
 
   useEffect(() => {
     const loadData = async () => {
@@ -100,7 +104,7 @@ const Home = () => {
                   )}
                 </motion.button>
 
-                {/* Bell Notification — FIXED */}
+                {/* Bell Notification */}
                 <motion.button
                   whileTap={{ scale: 0.9 }}
                   onClick={() => toast.info("No new notifications found")}
@@ -114,24 +118,13 @@ const Home = () => {
           </div>
         </header>
 
-        {/* Rest of your code unchanged */}
         <main className="max-w-md mx-auto">
 
-          {/* Banner Carousel */}
-          {/* <div className="p-4 space-y-3">
-            {banners.map((banner, index) => (
-              <motion.div
-                key={banner.id}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: index * 0.1 }}
-                className={`bg-gradient-to-r ${banner.gradient} rounded-2xl p-6 text-white shadow-lg`}
-              >
-                <h3 className="text-xl font-bold mb-1">{banner.title}</h3>
-                <p className="text-sm text-white/90">{banner.subtitle}</p>
-              </motion.div>
-            ))}
-          </div> */}
+          {/* Retailer Score Component - ADDED HERE */}
+          <RetailerScore 
+            retailerId={retailerId} 
+            retailerName={user?.name || 'Retailer'}
+          />
 
           {/* Category Slider */}
           <div className="px-4 py-2">

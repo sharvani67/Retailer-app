@@ -26,6 +26,9 @@ import InvoiceDownload from "./pages/InvoiceDownload";
 import EditProfile from "./pages/EditProfile";
 
 import Offers from "./pages/Offers";
+import PendingInvoice from "./pages/PendingInvoice";
+import Receipts from "./pages/Receipts";
+
 
 
 const queryClient = new QueryClient();
@@ -57,6 +60,10 @@ const App = () => (
             <Route path="/inventory" element={<Inventory />} />
             <Route path="/invoice-download" element={<InvoiceDownload />} />
             <Route path="/edit-profile" element={<EditProfile />} />
+
+            <Route path="/invoices" element={<PendingInvoice />} /> 
+            <Route path="/receipts" element={<Receipts />} />
+
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
