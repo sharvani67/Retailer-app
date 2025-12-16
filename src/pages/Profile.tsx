@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { User, Building2, Mail, Package, LogOut, Phone, Users, ChevronRight, Warehouse } from 'lucide-react';
+import { User, Building2, Mail, Package, LogOut, Phone, Users, ChevronRight, Warehouse , CreditCard , Wallet } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import TabBar from '@/components/TabBar';
 import { useApp } from '@/contexts/AppContext';
@@ -179,6 +179,17 @@ const Profile = () => {
               <Phone className="h-4 w-4 text-muted-foreground" />
               <span>{freshUser?.mobile_number}</span>
             </div>
+            <div className="flex items-center gap-3 text-sm">
+  <CreditCard className="h-4 w-4 text-muted-foreground" />
+  <span>Credit Limit : {freshUser?.credit_limit}</span>
+</div>
+
+<div className="flex items-center gap-3 text-sm">
+  <Wallet className="h-4 w-4 text-muted-foreground" />
+  <span>
+    Credit Balance : {freshUser?.credit_limit - freshUser?.unpaid_amount}
+  </span>
+</div>
           </div>
         </motion.div>
 

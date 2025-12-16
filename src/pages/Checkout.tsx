@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { useApp } from '@/contexts/AppContext';
 import TabBar from '@/components/TabBar';
 import { baseurl } from '@/Api/Baseurl';
+import CreditLimitModal from '@/components/CreditLimitModal';
 
 const Checkout = () => {
   const navigate = useNavigate();
@@ -16,6 +17,8 @@ const Checkout = () => {
 
   const [userDetails, setUserDetails] = useState<any>(null);
 const [loadingUser, setLoadingUser] = useState(true);
+const [showCreditPopup, setShowCreditPopup] = useState(false);
+
 
 useEffect(() => {
   const fetchUserDetails = async () => {
@@ -66,6 +69,7 @@ useEffect(() => {
   
   // Order Mode State
   const [orderMode, setOrderMode] = useState<'KACHA' | 'PAKKA'>('KACHA');
+  
   
   // Address
   const [address, setAddress] = useState({
@@ -192,6 +196,12 @@ useEffect(() => {
 
   const creditBreakdown = calculateCreditBreakdown(cartItems);
 
+  const creditLimit = Number(userDetails?.credit_limit) || 0;
+const unpaidAmount = Number(userDetails?.unpaid_amount) || 0;
+const orderTotal = Number(creditBreakdown?.finalTotal) || 0;
+const creditBalance = creditLimit - unpaidAmount;
+
+
   // Calculate average credit period
   const calculateAverageCreditPeriod = (items: any[]) => {
     const totalPeriod = items.reduce((sum, item) => sum + (parseInt(item.creditPeriod) || 0), 0);
@@ -202,13 +212,23 @@ useEffect(() => {
     setAddress({ ...address, [e.target.id]: e.target.value });
   };
 
-  // Enhanced place order function
 // Enhanced place order function
 const handlePlaceOrder = async () => {
   if (!user) {
     alert('Please login to place an order');
     return;
   }
+
+  const creditLimit = Number(userDetails?.credit_limit) || 0;
+const unpaidAmount = Number(userDetails?.unpaid_amount) || 0;
+const orderTotal = Number(creditBreakdown?.finalTotal) || 0;
+
+const creditBalance = creditLimit - unpaidAmount;
+
+if (orderTotal > creditBalance) {
+  setShowCreditPopup(true);
+  return;
+}
 
   try {
     // Fetch staff information from accounts table
@@ -535,9 +555,23 @@ const handlePlaceOrder = async () => {
             By placing this order, you agree to our terms and conditions
           </p>
         </motion.div>
+
+
+
       </main>
 
+      <CreditLimitModal
+  open={showCreditPopup}
+  onClose={() => setShowCreditPopup(false)}
+  creditLimit={creditLimit}
+  unpaidAmount={unpaidAmount}
+  creditBalance={creditBalance}
+  orderTotal={orderTotal}
+/>
+
       <TabBar />
+
+      
     </div>
   );
 };
