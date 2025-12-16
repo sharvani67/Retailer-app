@@ -21,6 +21,8 @@ export interface User {
   shipping_country: string;
   staffid: string;
   assigned_staff: string;
+  credit_limit:number;
+  unpaid_amount:number;
 }
 
 interface AppContextType {
