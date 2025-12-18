@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { User, Building2, Mail, Package, LogOut, Phone, Users, ChevronRight, Warehouse , CreditCard , Wallet } from 'lucide-react';
+import { User, Building2, Mail, Package, LogOut, Phone, Users, ChevronRight, Warehouse,Receipt , CreditCard , Wallet } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import TabBar from '@/components/TabBar';
 import { useApp } from '@/contexts/AppContext';
@@ -92,22 +92,30 @@ const Profile = () => {
     navigate('/login');
   };
 
-  const menuItems = [
-    {
-      icon: Package,
-      label: 'My Orders',
-      value: orders.length,
-      onClick: () => navigate('/orders'),
-      gradient: 'from-blue-500 to-indigo-500',
-    },
-    {
-      icon: Warehouse,
-      label: 'Inventory',
-      value: 0,
-      onClick: () => navigate('/inventory'),
-      gradient: 'from-green-500 to-emerald-500',
-    },
-  ];
+const menuItems = [
+  {
+    icon: Package,
+    label: "My Orders",
+    
+    onClick: () => navigate("/orders"),
+    gradient: "from-blue-500 to-indigo-500",
+  },
+  {
+    icon: Receipt,
+    label: "My Transactions",
+    
+    onClick: () => navigate("/receipts"), // or "/receipts"
+    gradient: "from-purple-500 to-pink-500",
+  },
+  {
+    icon: Warehouse,
+    label: "Inventory",
+    
+    onClick: () => navigate("/inventory"),
+    gradient: "from-green-500 to-emerald-500",
+  },
+];
+
 
   return (
     <div className="min-h-screen bg-background pb-24">
@@ -266,9 +274,7 @@ const Profile = () => {
                   </div>
                   <div className="flex-1 text-left">
                     <p className="font-semibold">{item.label}</p>
-                    {item.value > 0 && (
-                      <p className="text-xs text-muted-foreground">{item.value} items</p>
-                    )}
+                    
                   </div>
                   <ChevronRight className="h-5 w-5 text-muted-foreground" />
                 </div>
