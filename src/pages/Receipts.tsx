@@ -1,203 +1,255 @@
-import React, { useState, useEffect } from 'react';
-import TabBar from '@/components/TabBar';
-import { baseurl } from '@/Api/Baseurl';
+import React, { useEffect, useMemo, useState } from "react";
+import TabBar from "@/components/TabBar";
+import { baseurl } from "@/Api/Baseurl";
+import { useApp } from "@/contexts/AppContext";
+
+
+interface Transaction {
+  id: number;
+  voucherID?: string;
+  date?: string;
+  trantype?: string;
+  AccountName?: string;
+  PartyID?: number;
+  DC?: string;
+  Amount?: string | number;
+  balance_amount?: string | number;
+  created_at?: string;
+}
 
 function Receipts() {
-  const [receipts, setReceipts] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [retailerName, setRetailerName] = useState('Sai'); // Default retailer name
+  const { user } = useApp() as { user: { id?: string } | null };
 
-  // // Fetch receipts data
-  // useEffect(() => {
-  //   const fetchReceipts = async () => {
-  //     try {
-  //       const response = await fetch(`${baseurl}/api/receipts`);
-        
-  //       // Filter receipts for the specific retailer only
-  //       const filteredReceipts = response.data.filter(
-  //         receipt => receipt.PartyName === retailerName || receipt.AccountName === retailerName
-  //       );
-        
-  //       setReceipts(filteredReceipts);
-  //       setLoading(false);
-  //     } catch (err) {
-  //       setError('Failed to fetch receipts');
-  //       setLoading(false);
-  //       console.error('Error fetching receipts:', err);
-  //     }
-  //   };
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
 
-  //   fetchReceipts();
-  // }, [retailerName]);
+  // 🔍 Search & Pagination
+  const [search, setSearch] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [entriesPerPage, setEntriesPerPage] = useState(10);
 
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
-      </div>
-    );
-  }
+  useEffect(() => {
+    if (user?.id) fetchTransactions();
+  }, [user]);
 
-  if (error) {
-    return (
-      <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-        {error}
-      </div>
-    );
-  }
+  const fetchTransactions = async (): Promise<void> => {
+    try {
+      const res = await fetch(`${baseurl}/ledger`);
+      const data: Transaction[] = await res.json();
 
-  // Format currency
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: 'INR',
-      minimumFractionDigits: 2
-    }).format(amount || 0);
+      const filtered = data.filter(
+        (item) => Number(item.PartyID) === Number(user?.id)
+      );
+
+      setTransactions(filtered);
+    } catch (error) {
+      console.error("Error fetching transactions:", error);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // Format date
-  const formatDate = (dateString) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-IN', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric'
+  /* =========================
+     Search Filter
+  ========================= */
+  const filteredData = useMemo(() => {
+    return transactions.filter((item) => {
+      const q = search.toLowerCase();
+      return (
+        item.voucherID?.toLowerCase().includes(q) ||
+        item.trantype?.toLowerCase().includes(q) ||
+        item.AccountName?.toLowerCase().includes(q) ||
+        item.DC?.toLowerCase().includes(q)
+      );
     });
-  };
+  }, [transactions, search]);
+
+  /* =========================
+     Pagination
+  ========================= */
+  const totalPages = Math.ceil(filteredData.length / entriesPerPage);
+  const startIndex = (currentPage - 1) * entriesPerPage;
+  const paginatedData = filteredData.slice(
+    startIndex,
+    startIndex + entriesPerPage
+  );
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold text-gray-800">Receipts</h1>
-        <div className="text-lg font-semibold text-blue-600">
-          Retailer: {retailerName}
-        </div>
-      </div>
 
-      {receipts.length === 0 ? (
-        <div className="text-center py-12 bg-gray-50 rounded-lg">
-          <p className="text-gray-500 text-lg">No receipts found for {retailerName}</p>
-        </div>
-      ) : (
-        <div className="overflow-x-auto bg-white rounded-lg shadow">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Receipt No.
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Date
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Invoice No.
-                </th>
-                <th className="px6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Amount
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Payment Terms
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {receipts.map((receipt) => (
-                <tr key={receipt.VoucherID} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-medium text-gray-900">
-                      {receipt.VchNo}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">
-                      {formatDate(receipt.Date)}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">
-                      {receipt.InvoiceNumber || receipt.invoice_numbers?.join(', ')}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-semibold text-green-600">
-                      {formatCurrency(receipt.paid_amount || receipt.TotalAmount)}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                      receipt.status === 'Paid' 
-                        ? 'bg-green-100 text-green-800' 
-                        : 'bg-yellow-100 text-yellow-800'
-                    }`}>
-                      {receipt.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {receipt.PaymentTerms}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <button className="text-blue-600 hover:text-blue-900 mr-4">
-                      View
-                    </button>
-                    <button className="text-gray-600 hover:text-gray-900">
-                      Download
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-            <tfoot className="bg-gray-50">
-              <tr>
-                {/* <td colSpan="3" className="px-6 py-3 text-right text-sm font-semibold text-gray-900">
-                  Total Amount:
-                </td> */}
-                <td className="px-6 py-3 text-sm font-bold text-gray-900">
-                  {formatCurrency(
-                    receipts.reduce((sum, receipt) => sum + parseFloat(receipt.paid_amount || receipt.TotalAmount || 0), 0)
-                  )}
-                </td>
-                {/* <td colSpan="3"></td> */}
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-      )}
-
-      {/* Summary Cards */}
-      <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-blue-50 p-6 rounded-lg shadow">
-          <h3 className="text-lg font-semibold text-blue-800 mb-2">Total Receipts</h3>
-          <p className="text-3xl font-bold text-blue-600">{receipts.length}</p>
-        </div>
-        <div className="bg-green-50 p-6 rounded-lg shadow">
-          <h3 className="text-lg font-semibold text-green-800 mb-2">Total Paid</h3>
-          <p className="text-3xl font-bold text-green-600">
-            {formatCurrency(
-              receipts.reduce((sum, receipt) => sum + parseFloat(receipt.paid_amount || receipt.TotalAmount || 0), 0)
-            )}
+       <>
+  {/* 🔝 Sticky Header */}
+  <header className="sticky top-0 z-40 bg-white/90 backdrop-blur-lg border-b border-gray-200">
+    <div className="max-w-md mx-auto px-4 py-3">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-bold">My Transactions</h1>
+          <p className="text-sm text-gray-500">
+            {transactions.length} transaction
+            {transactions.length !== 1 ? "s" : ""}
           </p>
         </div>
-        <div className="bg-purple-50 p-6 rounded-lg shadow">
-          <h3 className="text-lg font-semibold text-purple-800 mb-2">Average per Receipt</h3>
-          <p className="text-3xl font-bold text-purple-600">
-            {receipts.length > 0 
-              ? formatCurrency(
-                  receipts.reduce((sum, receipt) => sum + parseFloat(receipt.paid_amount || receipt.TotalAmount || 0), 0) / receipts.length
-                )
-              : formatCurrency(0)
-            }
-          </p>
-        </div>
+
       </div>
-      <TabBar />
     </div>
+  </header>
+
+  {/* 📄 Page Content */}
+  <div className="container mx-auto px-4 py-6">
+    <TabBar />
+
+    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
+          <input
+            type="text"
+            placeholder="Search transactions..."
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setCurrentPage(1);
+            }}
+            className="w-full md:w-64 border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+
+          <div className="flex items-center gap-2 text-sm">
+            <span>Show</span>
+            <select
+              value={entriesPerPage}
+              onChange={(e) => {
+                setEntriesPerPage(Number(e.target.value));
+                setCurrentPage(1);
+              }}
+              className="border rounded-md px-2 py-1"
+            >
+              {[5, 10, 25, 50].map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+            <span>entries</span>
+          </div>
+        </div>
+
+        {/* 📊 Table */}
+        {loading ? (
+          <p className="text-gray-500">Loading transactions...</p>
+        ) : filteredData.length === 0 ? (
+          <p className="text-gray-500">No transactions found.</p>
+        ) : (
+          <div className="overflow-x-auto border rounded-lg">
+            <table className="min-w-full text-sm">
+              <thead className="bg-gray-100 sticky top-0">
+                <tr>
+                  <th className="border px-3 py-2">Date</th>
+                  <th className="border px-3 py-2">Type</th>
+                  <th className="border px-3 py-2">Voucher</th>
+                  <th className="border px-3 py-2">Account</th>
+                  <th className="border px-3 py-2">Dr / Cr</th>
+                  <th className="border px-3 py-2">Amount</th>
+                  <th className="border px-3 py-2">Balance</th>
+                  <th className="border px-3 py-2">Created</th>
+                </tr>
+              </thead>
+              <tbody>
+                {paginatedData.map((item) => {
+                  const dc = item.DC?.toUpperCase();
+                  return (
+                    <tr
+                      key={item.id}
+                      className="text-center hover:bg-gray-50"
+                    >
+                      <td className="border px-3 py-2">
+                        {item.date
+                          ? new Date(item.date).toLocaleDateString()
+                          : "-"}
+                      </td>
+                      <td className="border px-3 py-2">
+                        {item.trantype || "-"}
+                      </td>
+                      <td className="border px-3 py-2">
+                        {item.voucherID || "-"}
+                      </td>
+                      <td className="border px-3 py-2">
+                        {item.AccountName || "-"}
+                      </td>
+                      <td className="border px-3 py-2 font-medium">
+                        <span
+                          className={`px-2 py-1 rounded text-xs ${
+                            dc === "C"
+                              ? "bg-green-100 text-green-700"
+                              : "bg-red-100 text-red-700"
+                          }`}
+                        >
+                          {dc || "-"}
+                        </span>
+                      </td>
+                      <td className="border px-3 py-2">
+                        ₹{Number(item.Amount || 0).toFixed(2)}
+                      </td>
+                      <td className="border px-3 py-2">
+                        ₹{Number(item.balance_amount || 0).toFixed(2)}
+                      </td>
+                      <td className="border px-3 py-2">
+                        {item.created_at
+                          ? new Date(item.created_at).toLocaleString("en-IN")
+                          : "-"}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* 🔢 Pagination */}
+        {totalPages > 1 && (
+          <div className="flex justify-between items-center mt-4 text-sm">
+            <span>
+              Showing {startIndex + 1} to{" "}
+              {Math.min(startIndex + entriesPerPage, filteredData.length)} of{" "}
+              {filteredData.length}
+            </span>
+
+            <div className="flex gap-1">
+              <button
+                onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+                disabled={currentPage === 1}
+                className="px-3 py-1 border rounded disabled:opacity-50"
+              >
+                Prev
+              </button>
+
+              {Array.from({ length: totalPages }).map((_, i) => (
+                <button
+                  key={i}
+                  onClick={() => setCurrentPage(i + 1)}
+                  className={`px-3 py-1 border rounded ${
+                    currentPage === i + 1
+                      ? "bg-blue-500 text-white"
+                      : ""
+                  }`}
+                >
+                  {i + 1}
+                </button>
+              ))}
+
+              <button
+                onClick={() =>
+                  setCurrentPage((p) => Math.min(p + 1, totalPages))
+                }
+                disabled={currentPage === totalPages}
+                className="px-3 py-1 border rounded disabled:opacity-50"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
+     
+  </div>
+</>
+
+       
   );
 }
 
