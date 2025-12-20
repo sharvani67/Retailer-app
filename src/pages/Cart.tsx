@@ -481,7 +481,7 @@ const Cart = () => {
                         ₹{breakdown.edited_sale_price.toLocaleString()}
                       </span>
                       <span className="text-sm text-muted-foreground">
-                        for {breakdown.quantity} {breakdown.quantity === 1 ? 'unit' : 'units'}
+                        for unit 
                       </span>
                     </div>
                     <div className="text-sm text-muted-foreground">
@@ -492,13 +492,13 @@ const Cart = () => {
                   {/* CALCULATION BREAKDOWN - Mobile Optimized */}
                   <div className="space-y-2 text-sm mb-4">
                     {/* Sale Price */}
-                    <div className="flex justify-between py-1 border-b border-gray-100">
+                    {/* <div className="flex justify-between py-1 border-b border-gray-100">
                       <span className="text-muted-foreground">Sale Price:</span>
                       <span>₹{breakdown.edited_sale_price.toLocaleString()}</span>
-                    </div>
+                    </div> */}
                     
                     {/* Credit Charges */}
-                    {breakdown.credit_charge > 0 && (
+                    {/* {breakdown.credit_charge > 0 && (
                       <div className="flex justify-between py-1 border-b border-gray-100">
                         <div className="flex items-center gap-1">
                           <CreditCard className="h-3 w-3 text-orange-500" />
@@ -508,16 +508,16 @@ const Cart = () => {
                           +₹{breakdown.credit_charge.toLocaleString()}
                         </span>
                       </div>
-                    )}
+                    )} */}
                     
                     {/* Customer Sale Price */}
-                    <div className="flex justify-between py-1 border-b border-gray-100">
+                    {/* <div className="flex justify-between py-1 border-b border-gray-100">
                       <span className="text-muted-foreground">Customer Sale Price:</span>
                       <span>₹{breakdown.customer_sale_price.toLocaleString()}</span>
-                    </div>
+                    </div> */}
                     
                     {/* User Discount */}
-                    {userDiscountPercentage > 0 && (
+                    {/* {userDiscountPercentage > 0 && (
                       <div className="flex justify-between py-1 border-b border-gray-100">
                         <div className="flex items-center gap-1">
                           <Tag className="h-3 w-3 text-green-600" />
@@ -527,16 +527,16 @@ const Cart = () => {
                           -₹{breakdown.discount_amount.toLocaleString()}
                         </span>
                       </div>
-                    )}
+                    )} */}
                     
                     {/* Item Total (before tax) */}
-                    <div className="flex justify-between py-1 border-b border-gray-100">
+                    {/* <div className="flex justify-between py-1 border-b border-gray-100">
                       <span className="text-muted-foreground">Item Total:</span>
                       <span>₹{breakdown.item_total.toLocaleString()}</span>
-                    </div>
+                    </div> */}
                     
                     {/* GST Breakdown if applicable */}
-                    {breakdown.tax_percentage > 0 && (
+                    {/* {breakdown.tax_percentage > 0 && (
                       <>
                         <div className="flex justify-between py-1 border-b border-gray-100">
                           <span className="text-muted-foreground">Taxable Amount:</span>
@@ -563,20 +563,20 @@ const Cart = () => {
                           </div>
                         )}
                       </>
-                    )}
+                    )} */}
                     
                     {/* Final Amount */}
                     <div className="flex justify-between pt-1">
                       <span className="font-semibold">Final Amount:</span>
                       <span className="font-bold text-primary">
-                        ₹{breakdown.final_amount.toLocaleString()}
+                        ₹{finalPayableAmount.toLocaleString()} 
                       </span>
                     </div>
                     
                     {/* Quantity Multiplier Note */}
-                    <div className="text-xs text-muted-foreground text-center pt-2 border-t">
+                    {/* <div className="text-xs text-muted-foreground text-center pt-2 border-t">
                       × {breakdown.quantity} units = ₹{finalPayableAmount.toLocaleString()} total
-                    </div>
+                    </div> */}
                   </div>
 
                   {/* Quantity and Credit Controls */}
@@ -654,10 +654,10 @@ const Cart = () => {
           </div>
 
           <div className="space-y-3">
-            <div className="flex justify-between">
+            {/* <div className="flex justify-between">
               <span className="text-muted-foreground">Subtotal ({cart.length} items)</span>
               <span>₹{orderTotals.subtotal.toLocaleString()}</span>
-            </div>
+            </div> */}
 
             {orderTotals.totalCreditCharges > 0 && (
               <div className="flex justify-between">
@@ -669,10 +669,10 @@ const Cart = () => {
               </div>
             )}
 
-            <div className="flex justify-between">
+            {/* <div className="flex justify-between">
               <span className="text-muted-foreground">Customer Sale Price</span>
               <span>₹{orderTotals.totalCustomerSalePrice.toLocaleString()}</span>
-            </div>
+            </div> */}
 
             {orderTotals.totalDiscount > 0 && (
               <div className="flex justify-between">
@@ -684,10 +684,10 @@ const Cart = () => {
               </div>
             )}
 
-            <div className="flex justify-between">
+            {/* <div className="flex justify-between">
               <span className="text-muted-foreground">Item Total</span>
               <span>₹{orderTotals.totalItemTotal.toLocaleString()}</span>
-            </div>
+            </div> */}
 
             {orderTotals.totalTax > 0 && (
               <>
@@ -702,7 +702,7 @@ const Cart = () => {
                 </div>
 
                 {/* Show SGST/CGST split if needed */}
-                <div className="pl-4 space-y-1 text-sm text-muted-foreground">
+                {/* <div className="pl-4 space-y-1 text-sm text-muted-foreground">
                   <div className="flex justify-between">
                     <span>SGST:</span>
                     <span>+₹{orderTotals.totalSgst.toLocaleString()}</span>
@@ -711,7 +711,7 @@ const Cart = () => {
                     <span>CGST:</span>
                     <span>+₹{orderTotals.totalCgst.toLocaleString()}</span>
                   </div>
-                </div>
+                </div> */}
               </>
             )}
 

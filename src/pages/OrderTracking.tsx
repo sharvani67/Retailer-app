@@ -19,6 +19,7 @@ interface OrderItem {
   price: number;
   quantity: number;
   total_amount: number;
+  final_amount: number;
   credit_period: number;
   credit_percentage: number;
   mrp?: number;
@@ -116,6 +117,7 @@ const OrderTracking = () => {
             price: parseFloat(item.price) || 0,
             quantity: parseInt(item.quantity) || 0,
             total_amount: parseFloat(item.total_amount) || 0,
+            final_amount: parseFloat(item.final_amount) || 0,
             mrp: parseFloat(item.mrp) || 0,
             sale_price: parseFloat(item.sale_price) || 0,
             discount_amount: parseFloat(item.discount_amount) || 0,
@@ -449,7 +451,7 @@ const OrderTracking = () => {
           <div className="space-y-4">
             {order.items && order.items.length > 0 ? (
               order.items.map((item, index) => {
-                const itemPrice = getNumericValue(item.sale_price);
+                const itemPrice = getNumericValue(item.final_amount);
                 const itemMRP = getNumericValue(item.mrp);
                 const itemTotal = getNumericValue(item.total_amount) || getNumericValue(item.item_total);
                 const discountAmount = getNumericValue(item.discount_amount);
@@ -499,13 +501,13 @@ const OrderTracking = () => {
                       </div>
 
                       {/* Discount Info */}
-                      {discountAmount > 0 && (
+                      {/* {discountAmount > 0 && (
                         <div className="text-xs text-green-600 mt-1">
                           {item.discount_percentage}% discount (₹{discountAmount.toLocaleString('en-IN')})
                         </div>
                       )}
 
-                      {/* Tax Info */}
+                     
                       {taxAmount > 0 && (
                         <div className="text-xs text-blue-600 mt-1">
                           Tax: ₹{taxAmount.toLocaleString('en-IN')}
@@ -518,12 +520,12 @@ const OrderTracking = () => {
                         </div>
                       )}
 
-                      {/* Discount Scheme */}
+                    
                       {item.discount_applied_scheme && (
                         <div className="text-xs text-purple-600 mt-1">
                           Scheme: {item.discount_applied_scheme}
                         </div>
-                      )}
+                      )} */}
                     </div>
                   </div>
                 );
@@ -539,17 +541,24 @@ const OrderTracking = () => {
           {/* Order Summary */}
           {order.items && order.items.length > 0 && (
             <div className="border-t border-border mt-4 pt-4 space-y-2">
-              <div className="flex justify-between text-sm">
+              {/* <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Subtotal</span>
                 <span>₹{getNumericValue(order.order_total).toLocaleString('en-IN')}</span>
               </div>
+
+               {getNumericValue(order.credit_period) > 0 && (
+                <div className="flex justify-between text-sm text-green-600">
+                  <span>Credit Charges</span>
+                  <span>+₹{getNumericValue(order.credit_period).toLocaleString('en-IN')}</span>
+                </div>
+              )}
               
               {getNumericValue(order.discount_amount) > 0 && (
                 <div className="flex justify-between text-sm text-green-600">
                   <span>Discount</span>
                   <span>-₹{getNumericValue(order.discount_amount).toLocaleString('en-IN')}</span>
                 </div>
-              )}
+              )} */}
               
               {getNumericValue(order.taxable_amount) > 0 && (
                 <div className="flex justify-between text-sm">
@@ -570,12 +579,12 @@ const OrderTracking = () => {
                 <span className="text-primary">₹{getNumericValue(order.net_payable).toLocaleString('en-IN')}</span>
               </div>
               
-              {order.credit_period > 0 && (
+              {/* {order.credit_period > 0 && (
                 <div className="flex justify-between text-sm text-orange-600 pt-2">
                   <span>Credit Period</span>
                   <span>{order.credit_period} days</span>
                 </div>
-              )}
+              )} */}
             </div>
           )}
         </motion.div>

@@ -344,10 +344,10 @@ const Checkout = () => {
           {/* Order Total Breakdown */}
           <div className="border-t border-border pt-4 space-y-3">
             {/* Sale Price Total */}
-            <div className="flex justify-between text-muted-foreground">
+            {/* <div className="flex justify-between text-muted-foreground">
               <span>Sale Price Total</span>
               <span>₹{orderTotals.subtotal.toLocaleString()}</span>
-            </div>
+            </div> */}
 
             {/* Credit Charges */}
             {orderTotals.totalCreditCharges > 0 && (
@@ -361,10 +361,10 @@ const Checkout = () => {
             )}
 
             {/* Customer Sale Price */}
-            <div className="flex justify-between text-muted-foreground border-b pb-2">
+            {/* <div className="flex justify-between text-muted-foreground border-b pb-2">
               <span>Customer Sale Price</span>
               <span>₹{orderTotals.totalCustomerSalePrice.toLocaleString()}</span>
-            </div>
+            </div> */}
 
             {/* Discount */}
             {orderTotals.totalDiscount > 0 && (
@@ -378,10 +378,10 @@ const Checkout = () => {
             )}
 
             {/* Item Total */}
-            <div className="flex justify-between text-muted-foreground">
+            {/* <div className="flex justify-between text-muted-foreground">
               <span>Item Total</span>
               <span>₹{orderTotals.totalItemTotal.toLocaleString()}</span>
-            </div>
+            </div> */}
 
             {/* Taxable Amount */}
             {orderTotals.totalTax > 0 && (
@@ -400,7 +400,7 @@ const Checkout = () => {
             )}
 
             {/* GST Split if needed */}
-            {orderTotals.totalTax > 0 && (
+            {/* {orderTotals.totalTax > 0 && (
               <div className="pl-4 space-y-1 text-sm text-muted-foreground">
                 <div className="flex justify-between">
                   <span>SGST:</span>
@@ -411,7 +411,7 @@ const Checkout = () => {
                   <span>+₹{orderTotals.totalCgst.toLocaleString()}</span>
                 </div>
               </div>
-            )}
+            )} */}
 
             {/* Final Total */}
             <div className="border-t border-border pt-3 flex justify-between text-xl font-bold">
@@ -432,11 +432,11 @@ const Checkout = () => {
             </div>
 
             {/* Credit Period Info */}
-            {orderTotals.totalCreditCharges > 0 && (
+            {/* {orderTotals.totalCreditCharges > 0 && (
               <div className="text-xs text-muted-foreground text-center pt-2 bg-blue-50 rounded-lg p-2">
                 ⏰ Average Credit Period: {calculateAverageCreditPeriod(cartItems)} days
               </div>
-            )}
+            )} */}
 
             {/* Savings Message */}
             {orderTotals.totalDiscount > 0 && (
