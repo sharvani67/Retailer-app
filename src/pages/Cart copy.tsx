@@ -46,100 +46,103 @@ const Cart = () => {
     initializeCart();
   }, [user, syncCartWithBackend, isInitialized]);
 
-  // Get user discount percentage
+  // Get user discount percentage - assuming it's now stored as 5.00 for 5%
   const userDiscountPercentage = user?.discount ? parseFloat(user.discount) : 0;
 
-  // Calculate item price breakdown according to new flow
+  // Calculate item price breakdown according to new DB structure
   const calculateItemBreakdown = (item: any) => {
     const mrp = parseFloat(item.product.mrp) || 0;
     const salePrice = parseFloat(item.product.price) || 0;
-    
-    // Use edited_sale_price if available, otherwise use sale_price
-    const editedSalePrice = item.product.edited_sale_price 
-      ? parseFloat(item.product.edited_sale_price)
-      : salePrice;
-    
+    const editedSalePrice =  salePrice;
     const gstRate = parseFloat(item.product.gst_rate) || 0;
     const isInclusiveGST = item.product.inclusive_gst === "Inclusive";
     const quantity = item.quantity || 1;
+    const creditMultiplier = item.priceMultiplier || 1;
     const creditPercentage = item.creditPercentage || 0;
 
-    // Calculate credit charge (percentage of edited_sale_price)
-    const creditChargePerUnit = (editedSalePrice * creditPercentage) / 100;
-
-    // Calculate customer sale price
-    const customerSalePricePerUnit = editedSalePrice + creditChargePerUnit;
-
-    // Calculate discount (percentage of customer_sale_price)
-    const discountPercentage = userDiscountPercentage;
-    const discountAmountPerUnit = (customerSalePricePerUnit * discountPercentage) / 100;
-
-    // Calculate item total (before tax)
-    const itemTotalPerUnit = customerSalePricePerUnit - discountAmountPerUnit;
-
-    // Calculate tax (GST handling based on inclusive/exclusive)
-    let taxableAmountPerUnit = 0;
-    let taxAmountPerUnit = 0;
-
+    // Calculate product_base_price
+    let productBasePrice = 0;
     if (isInclusiveGST) {
-      // If GST is inclusive, extract taxable amount from item_total
-      taxableAmountPerUnit = itemTotalPerUnit / (1 + (gstRate / 100));
-      taxAmountPerUnit = itemTotalPerUnit - taxableAmountPerUnit;
+      // If GST is inclusive, extract base price from edited_sale_price
+      productBasePrice = editedSalePrice / (1 + (gstRate / 100));
     } else {
-      // If GST is exclusive, item_total is taxable amount
-      taxableAmountPerUnit = itemTotalPerUnit;
-      taxAmountPerUnit = (taxableAmountPerUnit * gstRate) / 100;
+      // If GST is exclusive, edited_sale_price is already the base price
+      productBasePrice = editedSalePrice;
     }
 
-    // Calculate CGST/SGST (split equally)
-    const sgstPercentage = gstRate / 2;
-    const cgstPercentage = gstRate / 2;
+    // Calculate credit_charge
+    const creditChargePerUnit = (productBasePrice * creditPercentage) / 100;
+    const totalCreditCharge = creditChargePerUnit * quantity;
+
+    // Calculate customer_sale_price (base + credit charge)
+    const customerSalePricePerUnit = productBasePrice + creditChargePerUnit;
+    const totalCustomerSalePrice = customerSalePricePerUnit * quantity;
+
+    // Calculate discount
+    const discountPercentage = userDiscountPercentage;
+    const discountAmountPerUnit = (customerSalePricePerUnit * discountPercentage) / 100;
+    const totalDiscountAmount = discountAmountPerUnit * quantity;
+
+    // Calculate taxable_amount
+    const taxableAmountPerUnit = customerSalePricePerUnit - discountAmountPerUnit;
+    const totalTaxableAmount = taxableAmountPerUnit * quantity;
+
+    // Calculate tax
+    const taxPercentage = gstRate;
+    const taxAmountPerUnit = (taxableAmountPerUnit * taxPercentage) / 100;
+    const totalTaxAmount = taxAmountPerUnit * quantity;
+
+    // Calculate item_total
+    const itemTotalPerUnit = taxableAmountPerUnit + taxAmountPerUnit;
+    const totalItemTotal = itemTotalPerUnit * quantity;
+
+    // Calculate CGST/SGST (split equally if applicable)
+    const sgstPercentage = taxPercentage / 2;
+    const cgstPercentage = taxPercentage / 2;
     const sgstAmountPerUnit = taxAmountPerUnit / 2;
     const cgstAmountPerUnit = taxAmountPerUnit / 2;
-
-    // Calculate final amount per unit (including tax if exclusive)
-    const finalAmountPerUnit = isInclusiveGST ? itemTotalPerUnit : itemTotalPerUnit + taxAmountPerUnit;
+    const totalSgstAmount = totalTaxAmount / 2;
+    const totalCgstAmount = totalTaxAmount / 2;
 
     return {
       // Database column names (per unit)
       mrp,
       sale_price: salePrice,
       edited_sale_price: editedSalePrice,
+      product_base_price: productBasePrice,
       credit_charge: creditChargePerUnit,
-      credit_period: item.creditPeriod ,
+      credit_period: item.creditPeriod || "0",
       credit_percentage: creditPercentage,
       customer_sale_price: customerSalePricePerUnit,
       discount_percentage: discountPercentage,
       discount_amount: discountAmountPerUnit,
-      item_total: itemTotalPerUnit,
       taxable_amount: taxableAmountPerUnit,
-      tax_percentage: gstRate,
+      tax_percentage: taxPercentage,
       tax_amount: taxAmountPerUnit,
+      item_total: itemTotalPerUnit,
       sgst_percentage: sgstPercentage,
       sgst_amount: sgstAmountPerUnit,
       cgst_percentage: cgstPercentage,
       cgst_amount: cgstAmountPerUnit,
-      final_amount: finalAmountPerUnit,
-      total_amount: finalAmountPerUnit * quantity,
       
       // For display purposes
       isInclusiveGST,
       quantity,
+      creditMultiplier,
       
       // Totals for the entire quantity
       totals: {
         totalMRP: mrp * quantity,
-        totalSalePrice: salePrice * quantity,
-        totalEditedSalePrice: editedSalePrice * quantity,
-        totalCreditCharge: creditChargePerUnit * quantity,
-        totalCustomerSalePrice: customerSalePricePerUnit * quantity,
-        totalDiscountAmount: discountAmountPerUnit * quantity,
-        totalItemTotal: itemTotalPerUnit * quantity,
-        totalTaxableAmount: taxableAmountPerUnit * quantity,
-        totalTaxAmount: taxAmountPerUnit * quantity,
-        totalSgstAmount: sgstAmountPerUnit * quantity,
-        totalCgstAmount: cgstAmountPerUnit * quantity,
-        finalPayableAmount: finalAmountPerUnit * quantity
+        totalProductBasePrice: productBasePrice * quantity,
+        totalCreditCharge,
+        totalCustomerSalePrice,
+        totalDiscountAmount,
+        totalTaxableAmount,
+        totalTaxAmount,
+        totalItemTotal,
+        totalSgstAmount,
+        totalCgstAmount,
+        finalPayableAmount: totalItemTotal
       }
     };
   };
@@ -147,7 +150,6 @@ const Cart = () => {
   // Calculate order summary totals
   const calculateOrderSummary = () => {
     const orderItems = cart.map(item => {
-      console.log("cart",cart);
       const breakdown = calculateItemBreakdown(item);
       return {
         product: item.product,
@@ -155,6 +157,7 @@ const Cart = () => {
         creditPeriod: item.creditPeriod,
         creditPercentage: item.creditPercentage,
         priceMultiplier: item.priceMultiplier,
+        edited_sale_price: item.product.price,
         
         // Complete breakdown for checkout
         breakdown: {
@@ -163,13 +166,11 @@ const Cart = () => {
             mrp: breakdown.mrp,
             sale_price: breakdown.sale_price,
             edited_sale_price: breakdown.edited_sale_price,
+            product_base_price: breakdown.product_base_price,
             credit_charge: breakdown.credit_charge,
-            credit_period: breakdown.credit_period,
-            credit_percentage: breakdown.credit_percentage,
             customer_sale_price: breakdown.customer_sale_price,
             discount_percentage: breakdown.discount_percentage,
             discount_amount: breakdown.discount_amount,
-            item_total: breakdown.item_total,
             taxable_amount: breakdown.taxable_amount,
             tax_percentage: breakdown.tax_percentage,
             tax_amount: breakdown.tax_amount,
@@ -177,16 +178,17 @@ const Cart = () => {
             sgst_amount: breakdown.sgst_amount,
             cgst_percentage: breakdown.cgst_percentage,
             cgst_amount: breakdown.cgst_amount,
-            final_amount: breakdown.final_amount,
-            total_amount: breakdown.total_amount,
-            isInclusiveGST: breakdown.isInclusiveGST
+            item_total: breakdown.item_total,
           },
           
           // Totals for the quantity
           totals: breakdown.totals,
           
-          // Quantity
-          quantity: breakdown.quantity
+          // Metadata
+          isInclusiveGST: breakdown.isInclusiveGST,
+          quantity: breakdown.quantity,
+          credit_period: breakdown.credit_period,
+          credit_percentage: breakdown.credit_percentage
         }
       };
     });
@@ -195,7 +197,7 @@ const Cart = () => {
     const orderTotals = {
       subtotal: cart.reduce((sum, item) => {
         const breakdown = calculateItemBreakdown(item);
-        return sum + breakdown.totals.totalEditedSalePrice;
+        return sum + breakdown.totals.totalProductBasePrice;
       }, 0),
       
       totalCreditCharges: cart.reduce((sum, item) => {
@@ -203,24 +205,9 @@ const Cart = () => {
         return sum + breakdown.totals.totalCreditCharge;
       }, 0),
       
-      totalCustomerSalePrice: cart.reduce((sum, item) => {
-        const breakdown = calculateItemBreakdown(item);
-        return sum + breakdown.totals.totalCustomerSalePrice;
-      }, 0),
-      
       totalDiscount: cart.reduce((sum, item) => {
         const breakdown = calculateItemBreakdown(item);
         return sum + breakdown.totals.totalDiscountAmount;
-      }, 0),
-      
-      totalItemTotal: cart.reduce((sum, item) => {
-        const breakdown = calculateItemBreakdown(item);
-        return sum + breakdown.totals.totalItemTotal;
-      }, 0),
-      
-      totalTaxableAmount: cart.reduce((sum, item) => {
-        const breakdown = calculateItemBreakdown(item);
-        return sum + breakdown.totals.totalTaxableAmount;
       }, 0),
       
       totalTax: cart.reduce((sum, item) => {
@@ -312,7 +299,7 @@ const Cart = () => {
     navigate('/checkout', { 
       state: { 
         cartItems: orderItems,
-        orderTotals,
+        creditBreakdown: orderTotals,
         userDiscountPercentage
       } 
     });
@@ -413,7 +400,7 @@ const Cart = () => {
         {/* CART ITEMS */}
         {cart.map((item, index) => {
           const breakdown = calculateItemBreakdown(item);
-          const finalPayableAmount = breakdown.totals.finalPayableAmount;
+          const itemTotal = breakdown.totals.finalPayableAmount;
 
           return (
             <motion.div
@@ -466,116 +453,90 @@ const Cart = () => {
 
                   {/* Price Display */}
                   <div className="mb-3">
-                    {breakdown.mrp > breakdown.edited_sale_price && (
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-sm line-through text-muted-foreground">
-                          ₹{breakdown.mrp.toLocaleString()}
-                        </span>
-                        <span className="text-xs bg-red-100 text-red-800 px-2 py-0.5 rounded">
-                          Save ₹{(breakdown.mrp - breakdown.edited_sale_price).toFixed(2)}
-                        </span>
-                      </div>
-                    )}
+                   
                     <div className="flex items-baseline gap-2">
                       <span className="text-lg font-bold text-primary">
                         ₹{breakdown.edited_sale_price.toLocaleString()}
                       </span>
                       <span className="text-sm text-muted-foreground">
-                        for {breakdown.quantity} {breakdown.quantity === 1 ? 'unit' : 'units'}
+                        per unit
                       </span>
                     </div>
                     <div className="text-sm text-muted-foreground">
-                      ₹{(finalPayableAmount / breakdown.quantity).toFixed(2)} per unit (final)
+                      ₹{(itemTotal / breakdown.quantity).toFixed(2)} per unit
                     </div>
                   </div>
 
                   {/* CALCULATION BREAKDOWN - Mobile Optimized */}
                   <div className="space-y-2 text-sm mb-4">
-                    {/* Sale Price */}
-                    <div className="flex justify-between py-1 border-b border-gray-100">
-                      <span className="text-muted-foreground">Sale Price:</span>
-                      <span>₹{breakdown.edited_sale_price.toLocaleString()}</span>
-                    </div>
+                    {/* Base Amount */}
+                    {/* <div className="flex justify-between py-1 border-b border-gray-100">
+                      <span className="text-muted-foreground">Base Amount:</span>
+                      <span>₹{breakdown.totals.totalProductBasePrice.toFixed(2)}</span>
+                    </div> */}
                     
                     {/* Credit Charges */}
-                    {breakdown.credit_charge > 0 && (
+                    {/* {breakdown.credit_charge > 0 && (
                       <div className="flex justify-between py-1 border-b border-gray-100">
                         <div className="flex items-center gap-1">
                           <CreditCard className="h-3 w-3 text-orange-500" />
                           <span className="text-muted-foreground">Credit ({breakdown.credit_percentage}%):</span>
                         </div>
                         <span className="text-orange-500 font-medium">
-                          +₹{breakdown.credit_charge.toLocaleString()}
+                          +₹{breakdown.totals.totalCreditCharge.toFixed(2)}
                         </span>
                       </div>
-                    )}
+                    )} */}
                     
                     {/* Customer Sale Price */}
-                    <div className="flex justify-between py-1 border-b border-gray-100">
+                    {/* <div className="flex justify-between py-1 border-b border-gray-100">
                       <span className="text-muted-foreground">Customer Sale Price:</span>
-                      <span>₹{breakdown.customer_sale_price.toLocaleString()}</span>
-                    </div>
+                      <span>₹{breakdown.totals.totalCustomerSalePrice.toFixed(2)}</span>
+                    </div> */}
                     
                     {/* User Discount */}
-                    {userDiscountPercentage > 0 && (
+                    {/* {userDiscountPercentage > 0 && (
                       <div className="flex justify-between py-1 border-b border-gray-100">
                         <div className="flex items-center gap-1">
                           <Tag className="h-3 w-3 text-green-600" />
                           <span className="text-muted-foreground">Your Discount ({userDiscountPercentage}%):</span>
                         </div>
                         <span className="text-green-600 font-medium">
-                          -₹{breakdown.discount_amount.toLocaleString()}
+                          -₹{breakdown.totals.totalDiscountAmount.toFixed(2)}
                         </span>
                       </div>
-                    )}
+                    )} */}
                     
-                    {/* Item Total (before tax) */}
-                    <div className="flex justify-between py-1 border-b border-gray-100">
-                      <span className="text-muted-foreground">Item Total:</span>
-                      <span>₹{breakdown.item_total.toLocaleString()}</span>
-                    </div>
+                    {/* Taxable Amount */}
+                    {/* <div className="flex justify-between py-1 border-b border-gray-100">
+                      <span className="text-muted-foreground">Taxable Amount:</span>
+                      <span>₹{breakdown.totals.totalTaxableAmount.toFixed(2)}</span>
+                    </div> */}
                     
                     {/* GST Breakdown if applicable */}
-                    {breakdown.tax_percentage > 0 && (
+                    {/* {breakdown.tax_percentage > 0 && (
                       <>
-                        <div className="flex justify-between py-1 border-b border-gray-100">
-                          <span className="text-muted-foreground">Taxable Amount:</span>
-                          <span>₹{breakdown.taxable_amount.toLocaleString()}</span>
-                        </div>
                         <div className="flex justify-between py-1 border-b border-gray-100">
                           <span className="text-muted-foreground">SGST ({breakdown.sgst_percentage}%):</span>
                           <span className="text-purple-600 font-medium">
-                            +₹{breakdown.sgst_amount.toLocaleString()}
+                            +₹{breakdown.totals.totalSgstAmount.toFixed(2)}
                           </span>
                         </div>
                         <div className="flex justify-between py-1 border-b border-gray-100">
                           <span className="text-muted-foreground">CGST ({breakdown.cgst_percentage}%):</span>
                           <span className="text-purple-600 font-medium">
-                            +₹{breakdown.cgst_amount.toLocaleString()}
+                            +₹{breakdown.totals.totalCgstAmount.toFixed(2)}
                           </span>
                         </div>
-                        {!breakdown.isInclusiveGST && (
-                          <div className="flex justify-between py-1 border-b border-gray-100">
-                            <span className="text-muted-foreground">Total Tax:</span>
-                            <span className="text-purple-600 font-medium">
-                              +₹{breakdown.tax_amount.toLocaleString()}
-                            </span>
-                          </div>
-                        )}
                       </>
-                    )}
+                    )} */}
                     
-                    {/* Final Amount */}
+                    {/* Final Total */}
                     <div className="flex justify-between pt-1">
-                      <span className="font-semibold">Final Amount:</span>
+                      <span className="font-semibold">Item Total:</span>
                       <span className="font-bold text-primary">
-                        ₹{breakdown.final_amount.toLocaleString()}
+                        ₹{breakdown.totals.finalPayableAmount.toFixed(2)}
                       </span>
-                    </div>
-                    
-                    {/* Quantity Multiplier Note */}
-                    <div className="text-xs text-muted-foreground text-center pt-2 border-t">
-                      × {breakdown.quantity} units = ₹{finalPayableAmount.toLocaleString()} total
                     </div>
                   </div>
 
@@ -669,11 +630,6 @@ const Cart = () => {
               </div>
             )}
 
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Customer Sale Price</span>
-              <span>₹{orderTotals.totalCustomerSalePrice.toLocaleString()}</span>
-            </div>
-
             {orderTotals.totalDiscount > 0 && (
               <div className="flex justify-between">
                 <div className="flex items-center gap-2">
@@ -684,36 +640,26 @@ const Cart = () => {
               </div>
             )}
 
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Item Total</span>
-              <span>₹{orderTotals.totalItemTotal.toLocaleString()}</span>
-            </div>
-
             {orderTotals.totalTax > 0 && (
-              <>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Taxable Amount</span>
-                  <span>₹{orderTotals.totalTaxableAmount.toLocaleString()}</span>
-                </div>
-                
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Total GST</span>
-                  <span className="text-purple-600">+₹{orderTotals.totalTax.toLocaleString()}</span>
-                </div>
-
-                {/* Show SGST/CGST split if needed */}
-                <div className="pl-4 space-y-1 text-sm text-muted-foreground">
-                  <div className="flex justify-between">
-                    <span>SGST:</span>
-                    <span>+₹{orderTotals.totalSgst.toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>CGST:</span>
-                    <span>+₹{orderTotals.totalCgst.toLocaleString()}</span>
-                  </div>
-                </div>
-              </>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Total GST ({userDiscountPercentage > 0 ? 'on taxable amount' : ''})</span>
+                <span className="text-purple-600">+₹{orderTotals.totalTax.toLocaleString()}</span>
+              </div>
             )}
+
+            {/* Show SGST/CGST split if needed */}
+            {/* {orderTotals.totalTax > 0 && (
+              <div className="pl-4 space-y-1 text-sm text-muted-foreground">
+                <div className="flex justify-between">
+                  <span>SGST:</span>
+                  <span>+₹{orderTotals.totalSgst.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>CGST:</span>
+                  <span>+₹{orderTotals.totalCgst.toLocaleString()}</span>
+                </div>
+              </div>
+            )} */}
 
             <div className="border-t border-border pt-3">
               <div className="flex justify-between text-xl font-bold">

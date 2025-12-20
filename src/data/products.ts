@@ -55,7 +55,7 @@ const fetchProducts = async (): Promise<Product[]> => {
         `${product.name} - Premium quality product`,
 
       price: Number(product.price) || 0,
-
+      mrp : product.mrp,
       unit: product.unit || "Units",
 
       category: product.category_id?.toString(),

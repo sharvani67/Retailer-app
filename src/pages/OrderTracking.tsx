@@ -449,7 +449,7 @@ const OrderTracking = () => {
           <div className="space-y-4">
             {order.items && order.items.length > 0 ? (
               order.items.map((item, index) => {
-                const itemPrice = getNumericValue(item.price);
+                const itemPrice = getNumericValue(item.sale_price);
                 const itemMRP = getNumericValue(item.mrp);
                 const itemTotal = getNumericValue(item.total_amount) || getNumericValue(item.item_total);
                 const discountAmount = getNumericValue(item.discount_amount);

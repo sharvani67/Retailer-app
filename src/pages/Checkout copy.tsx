@@ -22,14 +22,11 @@ const Checkout = () => {
 
   // Get checkout data from location state
   const checkoutData = location.state;
-  const cartItems = checkoutData?.cartItems || [];
-  const orderTotals = checkoutData?.orderTotals || {
+  const cartItems = checkoutData?.cartItems || []; // These already have breakdown from Cart
+  const creditBreakdown = checkoutData?.creditBreakdown || {
     subtotal: 0,
     totalCreditCharges: 0,
-    totalCustomerSalePrice: 0,
     totalDiscount: 0,
-    totalItemTotal: 0,
-    totalTaxableAmount: 0,
     totalTax: 0,
     totalSgst: 0,
     totalCgst: 0,
@@ -93,7 +90,7 @@ const Checkout = () => {
   // Calculate credit balance
   const creditLimit = Number(userDetails?.credit_limit) || 0;
   const unpaidAmount = Number(userDetails?.unpaid_amount) || 0;
-  const orderTotal = Number(orderTotals?.finalTotal) || 0;
+  const orderTotal = Number(creditBreakdown?.finalTotal) || 0;
   const creditBalance = creditLimit - unpaidAmount;
 
   // Calculate average credit period
@@ -145,17 +142,17 @@ const Checkout = () => {
       const orderNumber = `ORD${Date.now()}`;
       const averageCreditPeriod = calculateAverageCreditPeriod(cartItems);
       
-      // Create order data for backend according to new calculation flow
+      // Create order data for backend
       const orderData = {
         order_number: orderNumber,
         customer_id: parseInt(user.id),
         customer_name: userDetails?.name || address.name,
-        order_total: orderTotals.totalCustomerSalePrice, // customer_sale_price total
-        discount_amount: orderTotals.totalDiscount,
-        taxable_amount: orderTotals.totalTaxableAmount,
-        tax_amount: orderTotals.totalTax,
-        net_payable: orderTotals.finalTotal,
-        credit_period:  orderTotals.totalCreditCharges,
+        order_total: creditBreakdown.subtotal + creditBreakdown.totalCreditCharges,
+        discount_amount: creditBreakdown.totalDiscount,
+        taxable_amount: creditBreakdown.subtotal + creditBreakdown.totalCreditCharges - creditBreakdown.totalDiscount,
+        tax_amount: creditBreakdown.totalTax,
+        net_payable: creditBreakdown.finalTotal,
+        credit_period: averageCreditPeriod,
         estimated_delivery_date: new Date(Date.now() + 5 * 86400000).toISOString().split('T')[0],
         order_placed_by: parseInt(user.id),
         ordered_by: userDetails?.name,
@@ -165,7 +162,7 @@ const Checkout = () => {
         approval_status: "Approved",
         staff_incentive: staff_incentive,
         staff_email: staffEmail,
-        retailer_email: userDetails?.email,
+        retailer_email: userDetails.email,
       };
 
       console.log('Order Data:', orderData);
@@ -181,13 +178,13 @@ const Checkout = () => {
           mrp: breakdown.perUnit.mrp,
           sale_price: breakdown.perUnit.sale_price,
           edited_sale_price: breakdown.perUnit.edited_sale_price,
+          product_base_price: breakdown.perUnit.product_base_price,
           credit_charge: breakdown.perUnit.credit_charge,
-          credit_period: breakdown.perUnit.credit_period,
-          credit_percentage: breakdown.perUnit.credit_percentage,
+          credit_period: breakdown.credit_period || "0",
+          credit_percentage: breakdown.credit_percentage || 0,
           customer_sale_price: breakdown.perUnit.customer_sale_price,
           discount_percentage: breakdown.perUnit.discount_percentage,
           discount_amount: breakdown.perUnit.discount_amount,
-          item_total: breakdown.perUnit.item_total,
           taxable_amount: breakdown.perUnit.taxable_amount,
           tax_percentage: breakdown.perUnit.tax_percentage,
           tax_amount: breakdown.perUnit.tax_amount,
@@ -195,9 +192,9 @@ const Checkout = () => {
           sgst_amount: breakdown.perUnit.sgst_amount,
           cgst_percentage: breakdown.perUnit.cgst_percentage,
           cgst_amount: breakdown.perUnit.cgst_amount,
-          final_amount: breakdown.perUnit.final_amount,
+          item_total: breakdown.perUnit.item_total,
           quantity: item.quantity,
-          total_amount:breakdown.perUnit.total_amount,
+          total_amount: breakdown.totals.totalItemTotal,
           discount_applied_scheme: breakdown.perUnit.discount_percentage > 0 ? 'user_discount' : 'none'
         };
       });
@@ -205,42 +202,42 @@ const Checkout = () => {
       console.log('Order Items:', orderItems);
 
       // Send to backend
-      // const orderResponse = await fetch(`${baseurl}/orders/create-complete-order`, {
-      //   method: 'POST',
-      //   headers: {
-      //     'Content-Type': 'application/json',
-      //   },
-      //   body: JSON.stringify({
-      //     order: orderData,
-      //     orderItems: orderItems
-      //   })
-      // });
+      const orderResponse = await fetch(`${baseurl}/orders/create-complete-order`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          order: orderData,
+          orderItems: orderItems
+        })
+      });
 
-      // if (!orderResponse.ok) {
-      //   const errorData = await orderResponse.json();
-      //   throw new Error(errorData.message || 'Failed to create order');
-      // }
+      if (!orderResponse.ok) {
+        const errorData = await orderResponse.json();
+        throw new Error(errorData.message || 'Failed to create order');
+      }
 
-      // const orderResult = await orderResponse.json();
-      // console.log('Order Response:', orderResult);
+      const orderResult = await orderResponse.json();
+      console.log('Order Response:', orderResult);
       
-      
-      // await clearCart();
+      // Clear cart after successful order
+      await clearCart();
 
-      
-      // navigate('/order-confirmation', {
-      //   state: { 
-      //     orderId: orderResult.order_number || orderData.order_number, 
-      //     orderNumber: orderResult.order_number,
-      //     total: orderTotals.finalTotal,
-      //     orderTotals,
-      //     orderMode,
-      //     staffName: assigned_staff,
-      //     staffIncentive: staff_incentive
-      //   },
-      // });
+      // // Navigate to confirmation page
+      navigate('/order-confirmation', {
+        state: { 
+          orderId: orderResult.order_number || orderData.order_number, 
+          orderNumber: orderResult.order_number,
+          total: creditBreakdown.finalTotal,
+          creditBreakdown,
+          orderMode,
+          staffName: assigned_staff,
+          staffIncentive: staff_incentive
+        },
+      });
 
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error placing order:', error);
       alert(`Failed to place order: ${error.message}`);
     }
@@ -321,6 +318,7 @@ const Checkout = () => {
                 </select>
                 <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
               </div>
+             
             </div>
           </div>
         </motion.div>
@@ -343,72 +341,51 @@ const Checkout = () => {
 
           {/* Order Total Breakdown */}
           <div className="border-t border-border pt-4 space-y-3">
-            {/* Sale Price Total */}
             <div className="flex justify-between text-muted-foreground">
-              <span>Sale Price Total</span>
-              <span>₹{orderTotals.subtotal.toLocaleString()}</span>
+              <span>Subtotal</span>
+              <span>₹{creditBreakdown.subtotal.toLocaleString()}</span>
             </div>
 
             {/* Credit Charges */}
-            {orderTotals.totalCreditCharges > 0 && (
+            {creditBreakdown.totalCreditCharges > 0 && (
               <div className="flex justify-between text-muted-foreground">
                 <div className="flex items-center gap-2">
                   <CreditCard className="h-4 w-4 text-orange-500" />
                   <span>Credit Charges</span>
                 </div>
-                <span className="text-orange-500">+₹{orderTotals.totalCreditCharges.toLocaleString()}</span>
+                <span className="text-orange-500">+₹{creditBreakdown.totalCreditCharges.toLocaleString()}</span>
               </div>
             )}
 
-            {/* Customer Sale Price */}
-            <div className="flex justify-between text-muted-foreground border-b pb-2">
-              <span>Customer Sale Price</span>
-              <span>₹{orderTotals.totalCustomerSalePrice.toLocaleString()}</span>
-            </div>
-
             {/* Discount */}
-            {orderTotals.totalDiscount > 0 && (
+            {creditBreakdown.totalDiscount > 0 && (
               <div className="flex justify-between text-green-600">
                 <div className="flex items-center gap-2">
                   <Tag className="h-4 w-4" />
-                  <span>Your Discount ({orderTotals.userDiscount}%)</span>
+                  <span>Your Discount ({creditBreakdown.userDiscount}%)</span>
                 </div>
-                <span className="font-semibold">-₹{orderTotals.totalDiscount.toLocaleString()}</span>
-              </div>
-            )}
-
-            {/* Item Total */}
-            <div className="flex justify-between text-muted-foreground">
-              <span>Item Total</span>
-              <span>₹{orderTotals.totalItemTotal.toLocaleString()}</span>
-            </div>
-
-            {/* Taxable Amount */}
-            {orderTotals.totalTax > 0 && (
-              <div className="flex justify-between text-muted-foreground">
-                <span>Taxable Amount</span>
-                <span>₹{orderTotals.totalTaxableAmount.toLocaleString()}</span>
+                <span className="font-semibold">-₹{creditBreakdown.totalDiscount.toLocaleString()}</span>
               </div>
             )}
 
             {/* Tax */}
-            {orderTotals.totalTax > 0 && (
+            {creditBreakdown.totalTax > 0 && (
               <div className="flex justify-between text-muted-foreground">
                 <span>Total GST</span>
-                <span>+₹{orderTotals.totalTax.toLocaleString()}</span>
+                <span>+₹{creditBreakdown.totalTax.toLocaleString()}</span>
               </div>
             )}
 
             {/* GST Split if needed */}
-            {orderTotals.totalTax > 0 && (
+            {creditBreakdown.totalTax > 0 && (
               <div className="pl-4 space-y-1 text-sm text-muted-foreground">
                 <div className="flex justify-between">
                   <span>SGST:</span>
-                  <span>+₹{orderTotals.totalSgst.toLocaleString()}</span>
+                  <span>+₹{creditBreakdown.totalSgst.toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>CGST:</span>
-                  <span>+₹{orderTotals.totalCgst.toLocaleString()}</span>
+                  <span>+₹{creditBreakdown.totalCgst.toLocaleString()}</span>
                 </div>
               </div>
             )}
@@ -416,7 +393,7 @@ const Checkout = () => {
             {/* Final Total */}
             <div className="border-t border-border pt-3 flex justify-between text-xl font-bold">
               <span>Final Total</span>
-              <span className="text-primary">₹{orderTotals.finalTotal.toLocaleString()}</span>
+              <span className="text-primary">₹{creditBreakdown.finalTotal.toLocaleString()}</span>
             </div>
 
             {/* Order Mode Display */}
@@ -431,17 +408,10 @@ const Checkout = () => {
               </span>
             </div>
 
-            {/* Credit Period Info */}
-            {orderTotals.totalCreditCharges > 0 && (
-              <div className="text-xs text-muted-foreground text-center pt-2 bg-blue-50 rounded-lg p-2">
-                ⏰ Average Credit Period: {calculateAverageCreditPeriod(cartItems)} days
-              </div>
-            )}
-
             {/* Savings Message */}
-            {orderTotals.totalDiscount > 0 && (
+            {creditBreakdown.totalDiscount > 0 && (
               <div className="text-xs text-muted-foreground text-center pt-2 bg-green-50 rounded-lg p-2">
-                🎉 You saved ₹{orderTotals.totalDiscount.toLocaleString()} with your {orderTotals.userDiscount}% discount!
+                🎉 You saved ₹{creditBreakdown.totalDiscount.toLocaleString()} with your {creditBreakdown.userDiscount}% discount!
               </div>
             )}
           </div>
@@ -467,7 +437,7 @@ const Checkout = () => {
               cartItems.length === 0
             }
           >
-            Place Order - ₹{orderTotals.finalTotal.toLocaleString()}
+            Place Order - ₹{creditBreakdown.finalTotal.toLocaleString()}
           </Button>
           <p className="text-xs text-center text-muted-foreground mt-2">
             By placing this order, you agree to our terms and conditions
