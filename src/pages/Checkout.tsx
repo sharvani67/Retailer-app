@@ -205,40 +205,40 @@ const Checkout = () => {
       console.log('Order Items:', orderItems);
 
       // Send to backend
-      // const orderResponse = await fetch(`${baseurl}/orders/create-complete-order`, {
-      //   method: 'POST',
-      //   headers: {
-      //     'Content-Type': 'application/json',
-      //   },
-      //   body: JSON.stringify({
-      //     order: orderData,
-      //     orderItems: orderItems
-      //   })
-      // });
+      const orderResponse = await fetch(`${baseurl}/orders/create-complete-order`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          order: orderData,
+          orderItems: orderItems
+        })
+      });
 
-      // if (!orderResponse.ok) {
-      //   const errorData = await orderResponse.json();
-      //   throw new Error(errorData.message || 'Failed to create order');
-      // }
+      if (!orderResponse.ok) {
+        const errorData = await orderResponse.json();
+        throw new Error(errorData.message || 'Failed to create order');
+      }
 
-      // const orderResult = await orderResponse.json();
-      // console.log('Order Response:', orderResult);
+      const orderResult = await orderResponse.json();
+      console.log('Order Response:', orderResult);
       
       
-      // await clearCart();
+      await clearCart();
 
       
-      // navigate('/order-confirmation', {
-      //   state: { 
-      //     orderId: orderResult.order_number || orderData.order_number, 
-      //     orderNumber: orderResult.order_number,
-      //     total: orderTotals.finalTotal,
-      //     orderTotals,
-      //     orderMode,
-      //     staffName: assigned_staff,
-      //     staffIncentive: staff_incentive
-      //   },
-      // });
+      navigate('/order-confirmation', {
+        state: { 
+          orderId: orderResult.order_number || orderData.order_number, 
+          orderNumber: orderResult.order_number,
+          total: orderTotals.finalTotal,
+          orderTotals,
+          orderMode,
+          staffName: assigned_staff,
+          staffIncentive: staff_incentive
+        },
+      });
 
     } catch (error: any) {
       console.error('Error placing order:', error);
