@@ -90,20 +90,8 @@ const Checkout = () => {
     setAddress({ ...address, [e.target.id]: e.target.value });
   };
 
-  // Calculate credit balance
-  const creditLimit = Number(userDetails?.credit_limit) || 0;
-  const unpaidAmount = Number(userDetails?.unpaid_amount) || 0;
-  const orderTotal = Number(orderTotals?.finalTotal) || 0;
-  const creditBalance = creditLimit - unpaidAmount;
 
-  // Calculate average credit period
-  const calculateAverageCreditPeriod = (items: any[]) => {
-    const totalPeriod = items.reduce((sum, item) => 
-      sum + (parseInt(item.creditPeriod) || 0), 0);
-    return items.length > 0 ? Math.round(totalPeriod / items.length) : 0;
-  };
-
-  // Enhanced place order function
+  
   const handlePlaceOrder = async () => {
     if (!user) {
       alert('Please login to place an order');
@@ -111,10 +99,10 @@ const Checkout = () => {
     }
 
     // Check credit limit
-    if (orderTotal > creditBalance) {
-      setShowCreditPopup(true);
-      return;
-    }
+    // if (orderTotal > creditBalance) {
+    //   setShowCreditPopup(true);
+    //   return;
+    // }
 
     try {
       // Fetch staff information from accounts table
@@ -143,7 +131,7 @@ const Checkout = () => {
 
       // Generate order number
       const orderNumber = `ORD${Date.now()}`;
-      const averageCreditPeriod = calculateAverageCreditPeriod(cartItems);
+      // const averageCreditPeriod = calculateAverageCreditPeriod(cartItems);
       
       // Create order data for backend according to new calculation flow
       const orderData = {
@@ -475,14 +463,14 @@ const Checkout = () => {
         </motion.div>
       </main>
 
-      <CreditLimitModal
+      {/* <CreditLimitModal
         open={showCreditPopup}
         onClose={() => setShowCreditPopup(false)}
         creditLimit={creditLimit}
         unpaidAmount={unpaidAmount}
         creditBalance={creditBalance}
         orderTotal={orderTotal}
-      />
+      /> */}
 
       <TabBar />
     </div>
