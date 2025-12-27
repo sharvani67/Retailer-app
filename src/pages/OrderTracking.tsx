@@ -8,9 +8,6 @@ import { useState, useEffect } from 'react';
 import { baseurl } from '@/Api/Baseurl';
 import flourImage from '@/assets/flour-product.jpg';
 
-const getProductImage = (item: OrderItem) => {
-  return flourImage;
-};
 
 interface OrderItem {
   id: string;
@@ -74,6 +71,60 @@ const OrderTracking = () => {
   const [order, setOrder] = useState<ApiOrder | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [productMap, setProductMap] = useState<Map<string, any>>(new Map());
+
+
+
+  useEffect(() => {
+  const fetchProducts = async () => {
+    try {
+      const res = await fetch(`${baseurl}/get-sales-products`);
+      if (!res.ok) throw new Error("Failed to fetch products");
+
+      const products = await res.json();
+
+      const map = new Map<string, any>();
+      products.forEach((p: any) => {
+        map.set(p.id.toString(), p);
+      });
+
+      setProductMap(map);
+    } catch (err) {
+      console.error("Error fetching products for images:", err);
+    }
+  };
+
+  fetchProducts();
+}, []);
+
+
+const getProductImage = (item: OrderItem) => {
+  const product = productMap.get(item.product_id?.toString());
+
+  if (!product) return flourImage;
+
+  let images: string[] = [];
+
+  try {
+    images = product.images
+      ? Array.isArray(product.images)
+        ? product.images
+        : JSON.parse(product.images)
+      : [];
+  } catch {
+    images = [];
+  }
+
+  if (images.length === 0) return flourImage;
+
+  const firstImage = images[0];
+
+  return firstImage.startsWith("http")
+    ? firstImage
+    : `${baseurl}${firstImage}`;
+};
+
+
 
   // Fetch order details from API
   useEffect(() => {

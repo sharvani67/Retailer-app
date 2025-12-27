@@ -21,8 +21,8 @@ export interface User {
   shipping_country: string;
   staffid: string;
   assigned_staff: string;
-  credit_limit:number;
-  unpaid_amount:number;
+  credit_limit: number;
+  unpaid_amount: number;
 }
 
 interface AppContextType {
@@ -55,7 +55,7 @@ interface AppContextType {
   login: (userData: User) => boolean;
   signup: (userData: User) => boolean;
   logout: () => void;
-setUser: (user: User | null) => void;
+  setUser: (user: User | null) => void;
   // Credit periods
   fetchCreditPeriods: () => Promise<void>;
 }
@@ -179,6 +179,28 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           return null;
         }
 
+        // ✅ Normalize images exactly like fetchProducts
+let images: string[] = [];
+
+try {
+  if (Array.isArray(productData.images)) {
+    images = productData.images;
+  } else if (productData.images) {
+    images = JSON.parse(productData.images);
+  }
+} catch {
+  images = [];
+}
+
+// Prefix baseurl
+const normalizedImages =
+  images.length > 0
+    ? images.map((img) =>
+        img.startsWith("http") ? img : `${baseurl}${img}`
+      )
+    : [flourImage];
+
+
         return {
           id: item.id,
           product: {
@@ -187,13 +209,17 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             description: productData.description || "",
             price: parseFloat(productData.price) || 0,
             unit: productData.unit || "Units",
-            image: productData.image || flourImage,
+// ✅ FIXED
+  images: normalizedImages,
+  image: normalizedImages[0],
+
             category: productData.category || "",
             supplier: productData.supplier || "Unknown Supplier",
             stock: productData.stock || 0,
             gst_rate: parseFloat(productData.gst_rate) || 0,
             inclusive_gst: productData.inclusive_gst || "Exclusive"
           },
+
           quantity: item.quantity,
           creditPeriod: item.credit_period?.toString() || "0",
           priceMultiplier: 1 + ((item.credit_percentage || 0) / 100),

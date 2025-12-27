@@ -14,20 +14,33 @@ const ProductCard = ({ product }: ProductCardProps) => {
   const navigate = useNavigate();
   const isWishlisted = wishlist.some(item => item.product.id === product.id);
 
-  const handleAddToCart = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    
-    if (!user) {
-      navigate('/login');
-      return;
-    }
+const handleAddToCart = async (e: React.MouseEvent) => {
+  e.stopPropagation();
 
-    try {
-      await addToCart(product, 1);
-    } catch (error) {
-      console.error('Error adding to cart:', error);
-    }
-  };
+  if (!user) {
+    navigate('/login');
+    return;
+  }
+
+  try {
+    const images: string[] =
+      product.images && product.images.length > 0
+        ? product.images
+        : [product.image];
+
+    await addToCart(
+      {
+        ...product,
+        image: images[0], // ✅ correct image stored in cart
+        images,
+      },
+      1
+    );
+  } catch (error) {
+    console.error('Error adding to cart:', error);
+  }
+};
+
 
   return (
     <motion.div

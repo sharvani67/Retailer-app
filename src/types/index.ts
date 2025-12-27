@@ -4,6 +4,7 @@ export interface Product {
   description: string;
   price: number;
   unit: string;
+  images?: string[];
   image: string;
   category: string;        // category_id as string
   category_name?: string;  // readable category name from API

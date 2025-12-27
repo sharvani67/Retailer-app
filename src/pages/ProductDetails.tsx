@@ -16,6 +16,8 @@ const ProductDetails = () => {
   const [loading, setLoading] = useState(true);
   const [quantity, setQuantity] = useState(1);
   const { addToCart, addToWishlist, wishlist } = useApp();
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
+
 
   // Load product and similar products
   useEffect(() => {
@@ -96,6 +98,11 @@ const ProductDetails = () => {
     );
   }
 
+  const images: string[] =
+  product.images && product.images.length > 0
+    ? product.images
+    : [product.image];
+
   return (
     <div className="min-h-screen bg-background pb-6">
       {/* Header */}
@@ -132,21 +139,61 @@ const ProductDetails = () => {
       <div className="max-w-md mx-auto">
         {/* Product Image */}
         <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="relative h-80 bg-muted"
-        >
-          <img
-            src={product.image}
-            alt={product.name}
-            className="w-full h-full object-cover"
-          />
-          {product.stock < 50 && (
-            <div className="absolute top-4 left-4 px-4 py-2 bg-warning text-warning-foreground text-sm font-semibold rounded-full">
-              Only {product.stock} left in stock!
-            </div>
-          )}
-        </motion.div>
+  initial={{ opacity: 0 }}
+  animate={{ opacity: 1 }}
+  className="relative h-80 bg-muted overflow-hidden"
+>
+  {/* Main Image */}
+  <motion.img
+    key={activeImageIndex}
+    src={images[activeImageIndex]}
+    alt={product.name}
+    initial={{ opacity: 0, x: 30 }}
+    animate={{ opacity: 1, x: 0 }}
+    exit={{ opacity: 0, x: -30 }}
+    transition={{ duration: 0.3 }}
+    className="w-full h-full object-cover"
+  />
+
+  {/* Stock Badge */}
+  {product.stock < 50 && (
+    <div className="absolute top-4 left-4 px-4 py-2 bg-warning text-warning-foreground text-sm font-semibold rounded-full">
+      Only {product.stock} left!
+    </div>
+  )}
+
+  {/* Navigation Buttons */}
+  {images.length > 1 && (
+    <>
+      <button
+        onClick={() =>
+          setActiveImageIndex(
+            activeImageIndex === 0
+              ? images.length - 1
+              : activeImageIndex - 1
+          )
+        }
+        className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/40 text-white p-2 rounded-full"
+      >
+        ‹
+      </button>
+
+      <button
+        onClick={() =>
+          setActiveImageIndex(
+            activeImageIndex === images.length - 1
+              ? 0
+              : activeImageIndex + 1
+          )
+        }
+        className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/40 text-white p-2 rounded-full"
+      >
+        ›
+      </button>
+    </>
+  )}
+</motion.div>
+
 
         <div className="p-6 space-y-6">
           {/* Product Info */}

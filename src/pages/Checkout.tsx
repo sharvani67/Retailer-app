@@ -19,6 +19,8 @@ const Checkout = () => {
   const [loadingUser, setLoadingUser] = useState(true);
   const [showCreditPopup, setShowCreditPopup] = useState(false);
   const [orderMode, setOrderMode] = useState<'KACHA' | 'PAKKA'>('KACHA');
+  const [isPlacingOrder, setIsPlacingOrder] = useState(false);
+
 
   // Get checkout data from location state
   const checkoutData = location.state;
@@ -93,16 +95,13 @@ const Checkout = () => {
 
   
   const handlePlaceOrder = async () => {
+      if (isPlacingOrder) return; 
     if (!user) {
       alert('Please login to place an order');
       return;
     }
 
-    // Check credit limit
-    // if (orderTotal > creditBalance) {
-    //   setShowCreditPopup(true);
-    //   return;
-    // }
+    setIsPlacingOrder(true); // 🔄 start loading
 
     try {
       // Fetch staff information from accounts table
@@ -228,10 +227,12 @@ const Checkout = () => {
         },
       });
 
-    } catch (error: any) {
-      console.error('Error placing order:', error);
-      alert(`Failed to place order: ${error.message}`);
-    }
+   } catch (error: any) {
+  console.error('Error placing order:', error);
+  alert(`Failed to place order: ${error.message}`);
+  setIsPlacingOrder(false); // 🔓 re-enable button
+}
+
   };
 
   return (
@@ -331,12 +332,7 @@ const Checkout = () => {
 
           {/* Order Total Breakdown */}
           <div className="border-t border-border pt-4 space-y-3">
-            {/* Sale Price Total */}
-            {/* <div className="flex justify-between text-muted-foreground">
-              <span>Sale Price Total</span>
-              <span>₹{orderTotals.subtotal.toLocaleString()}</span>
-            </div> */}
-
+          
             {/* Credit Charges */}
             {orderTotals.totalCreditCharges > 0 && (
               <div className="flex justify-between text-muted-foreground">
@@ -348,11 +344,6 @@ const Checkout = () => {
               </div>
             )}
 
-            {/* Customer Sale Price */}
-            {/* <div className="flex justify-between text-muted-foreground border-b pb-2">
-              <span>Customer Sale Price</span>
-              <span>₹{orderTotals.totalCustomerSalePrice.toLocaleString()}</span>
-            </div> */}
 
             {/* Discount */}
             {orderTotals.totalDiscount > 0 && (
@@ -365,11 +356,6 @@ const Checkout = () => {
               </div>
             )}
 
-            {/* Item Total */}
-            {/* <div className="flex justify-between text-muted-foreground">
-              <span>Item Total</span>
-              <span>₹{orderTotals.totalItemTotal.toLocaleString()}</span>
-            </div> */}
 
             {/* Taxable Amount */}
             {orderTotals.totalTax > 0 && (
@@ -387,19 +373,6 @@ const Checkout = () => {
               </div>
             )}
 
-            {/* GST Split if needed */}
-            {/* {orderTotals.totalTax > 0 && (
-              <div className="pl-4 space-y-1 text-sm text-muted-foreground">
-                <div className="flex justify-between">
-                  <span>SGST:</span>
-                  <span>+₹{orderTotals.totalSgst.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>CGST:</span>
-                  <span>+₹{orderTotals.totalCgst.toLocaleString()}</span>
-                </div>
-              </div>
-            )} */}
 
             {/* Final Total */}
             <div className="border-t border-border pt-3 flex justify-between text-xl font-bold">
@@ -419,12 +392,6 @@ const Checkout = () => {
               </span>
             </div>
 
-            {/* Credit Period Info */}
-            {/* {orderTotals.totalCreditCharges > 0 && (
-              <div className="text-xs text-muted-foreground text-center pt-2 bg-blue-50 rounded-lg p-2">
-                ⏰ Average Credit Period: {calculateAverageCreditPeriod(cartItems)} days
-              </div>
-            )} */}
 
             {/* Savings Message */}
             {orderTotals.totalDiscount > 0 && (
@@ -447,6 +414,7 @@ const Checkout = () => {
             size="lg"
             className="w-full py-6 text-lg font-semibold"
             disabled={
+              isPlacingOrder || 
               !address.name ||
               !address.phone ||
               !address.addressLine ||
@@ -455,7 +423,14 @@ const Checkout = () => {
               cartItems.length === 0
             }
           >
-            Place Order - ₹{orderTotals.finalTotal.toLocaleString()}
+            {isPlacingOrder ? (
+    <span className="flex items-center justify-center gap-2">
+      <span className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full" />
+      Placing Order...
+    </span>
+  ) : (
+    <>Place Order - ₹{orderTotals.finalTotal.toLocaleString()}</>
+  )}
           </Button>
           <p className="text-xs text-center text-muted-foreground mt-2">
             By placing this order, you agree to our terms and conditions
@@ -463,14 +438,6 @@ const Checkout = () => {
         </motion.div>
       </main>
 
-      {/* <CreditLimitModal
-        open={showCreditPopup}
-        onClose={() => setShowCreditPopup(false)}
-        creditLimit={creditLimit}
-        unpaidAmount={unpaidAmount}
-        creditBalance={creditBalance}
-        orderTotal={orderTotal}
-      /> */}
 
       <TabBar />
     </div>

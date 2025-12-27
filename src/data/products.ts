@@ -45,37 +45,52 @@ const fetchProducts = async (): Promise<Product[]> => {
 
     const data = await response.json();
 
-    console.log("API Response:", data); // Debug
+    console.log("API Response:", data);
 
-    return data.map((product: any) => ({
-      id: product.id.toString(),
-      name: product.name,
-      description:
-        product.description ||
-        `${product.name} - Premium quality product`,
+    return data.map((product: any) => {
+      // ✅ Parse images safely
+      let images: string[] = [];
+      try {
+        images = product.images ? JSON.parse(product.images) : [];
+      } catch (e) {
+        images = [];
+      }
 
-      price: Number(product.price) || 0,
-      mrp : product.mrp,
-      unit: product.unit || "Units",
+      return {
+        id: product.id.toString(),
+        name: product.name,
+        description:
+          product.description ||
+          `${product.name} - Premium quality product`,
 
-      category: product.category_id?.toString(),
-      category_name: product.category || "",
+        price: Number(product.price) || 0,
+        mrp: Number(product.mrp) || 0,
+        unit: product.unit || "Units",
 
-      supplier: product.supplier || "Unknown Supplier",
+        category: product.category_id?.toString(),
+        category_name: product.category || "",
 
-      stock: product.stock || 50,
+        supplier: product.supplier || "Unknown Supplier",
+        stock: product.stock || 50,
 
-      image: getProductImage(product.category),
+        // ✅ Use first image (full URL)
+        image: images.length > 0
+          ? `${baseurl}${images[0]}`
+          : flourImage, // fallback if no image
 
-      // ⭐ Newly added fields matched from your JSON
-      gst_rate: Number(product.gst_rate) || 0,
-      inclusive_gst: product.inclusive_gst || "Exclusive",
-    }));
+        // Optional: keep full images array if needed later
+        images: images.map((img) => `${baseurl}${img}`),
+
+        gst_rate: Number(product.gst_rate) || 0,
+        inclusive_gst: product.inclusive_gst || "Exclusive",
+      };
+    });
   } catch (error) {
     console.error("Error fetching products:", error);
     return [];
   }
 };
+
 
 
 // Function to fetch a single product by ID
@@ -107,25 +122,6 @@ const getCategoryIcon = (categoryName: string): string => {
   };
   
   return iconMap[categoryName] || '📦'; // Default icon
-};
-
-// Helper function to assign images based on category
-const getProductImage = (category: string): string => {
-  const imageMap: { [key: string]: string } = {
-    'rice': riceImage,
-    'pulses': dalImage,
-    'dal': dalImage,
-    'sugar': sugarImage,
-    'oils': oilImage,
-    'oil': oilImage,
-    'grains': flourImage,
-    'flour': flourImage,
-    'spices': spicesImage,
-    'mobile': flourImage, // Add mappings for your new categories
-    'laptops': flourImage,
-  };
-  
-  return imageMap[category?.toLowerCase()] || flourImage; // Default image
 };
 
 // Export the fetch functions
