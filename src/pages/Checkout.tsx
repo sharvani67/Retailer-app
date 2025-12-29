@@ -108,6 +108,7 @@ const Checkout = () => {
       let staff_incentive = 0;
       let assigned_staff = "Unassigned";
       let staffEmail = null;
+      let staffMobile = null;
       
       if (user.staffid) {
         try {
@@ -119,6 +120,7 @@ const Checkout = () => {
               staff_incentive = (staffData.incentive_percent) || 0;
               assigned_staff = staffData.name;
               staffEmail = staffData.email || null; 
+              staffMobile = staffData.mobile_number || null; 
             }
           } else {
             console.warn('Failed to fetch staff details, using defaults');
@@ -152,7 +154,9 @@ const Checkout = () => {
         approval_status: "Approved",
         staff_incentive: staff_incentive,
         staff_email: staffEmail,
+        staff_mobile: staffMobile,
         retailer_email: userDetails?.email,
+        retailer_mobile: userDetails?.mobile_number,
       };
 
       console.log('Order Data:', orderData);
