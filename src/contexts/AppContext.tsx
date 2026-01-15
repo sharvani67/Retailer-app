@@ -23,8 +23,9 @@ export interface User {
   assigned_staff: string;
   credit_limit: number;
   unpaid_amount: number;
-  mobile?: string;   // ✅ ADD THIS
+  mobile?: string;
 }
+
 
 interface AppContextType {
   cart: CartItem[];
@@ -33,19 +34,20 @@ interface AppContextType {
   isAuthenticated: boolean;
   user: User | null;
   creditPeriods: CreditPeriod[];
-     creditPeriod?: string,
-    creditPercentage?: number
   loading: boolean;
-  cartLoading: boolean; // Add cart-specific loading state
+  cartLoading: boolean;
 
   // Cart operations
-  addToCart: (product: Product, quantity: number, creditPeriod?: string,
-  creditPercentage?: number) => Promise<void>;
+  addToCart: (product: Product, quantity: number, creditPeriod?: string, creditPercentage?: number) => Promise<void>;
   removeFromCart: (productId: string) => Promise<void>;
   updateCartQuantity: (productId: string, quantity: number) => Promise<void>;
   updateItemCreditPeriod: (productId: string, period: string, percentage?: number) => Promise<void>;
   syncCartWithBackend: () => Promise<void>;
   clearCart: () => Promise<void>;
+  
+  // Order editing operations
+  fetchOrderForEdit: (orderNumber: string) => Promise<any>;
+  addOrderItemsToCart: (orderItems: any[]) => Promise<void>;
 
   // Wishlist operations
   addToWishlist: (product: Product) => void;
@@ -60,6 +62,7 @@ interface AppContextType {
   signup: (userData: User) => boolean;
   logout: () => void;
   setUser: (user: User | null) => void;
+  
   // Credit periods
   fetchCreditPeriods: () => Promise<void>;
 }
@@ -68,7 +71,6 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [cart, setCart] = useState<CartItem[]>(() => {
-    // Load cart from localStorage on initial render
     const savedCart = localStorage.getItem("appCart");
     return savedCart ? JSON.parse(savedCart) : [];
   });
@@ -86,7 +88,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   });
   const [creditPeriods, setCreditPeriods] = useState<CreditPeriod[]>([]);
   const [loading, setLoading] = useState(false);
-  const [cartLoading, setCartLoading] = useState(false); // Separate cart loading state
+  const [cartLoading, setCartLoading] = useState(false);
 
   // Save cart to localStorage whenever it changes
   useEffect(() => {
@@ -100,49 +102,153 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   // Load initial data
   useEffect(() => {
     const loadInitialData = async () => {
-      // Load user's cart from backend if authenticated
       if (user) {
         await syncCartWithBackend();
       }
-
-      // Load credit periods
       await fetchCreditPeriods();
     };
-
     loadInitialData();
-  }, [user?.id]); // Re-run when user changes
+  }, [user?.id]);
 
   // Fetch credit periods from API
   const fetchCreditPeriods = async (): Promise<void> => {
     try {
       const response = await fetch(`${baseurl}/api/credit-period-fix/credit`);
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
       const result = await response.json();
-
+      
       if (result.success && result.data) {
         const transformedPeriods = result.data.map((period: any) => ({
           days: parseInt(period.credit_period),
           percentage: parseInt(period.credit_percentage),
           multiplier: 1 + (parseInt(period.credit_percentage) / 100)
         }));
-
         setCreditPeriods(transformedPeriods);
-      } else {
-        // Fallback to default periods
       }
     } catch (error) {
       console.error('Error fetching credit periods:', error);
     }
   };
 
+  // Function to fetch order for editing
+  const fetchOrderForEdit = async (orderNumber: string): Promise<any> => {
+    try {
+      console.log('Fetching order for edit:', orderNumber);
+      const response = await fetch(`${baseurl}/orders/details/${orderNumber}`);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch order: ${response.status}`);
+      }
+      const data = await response.json();
+      console.log('Order data fetched:', data);
+      return data;
+    } catch (error) {
+      console.error('Error fetching order for edit:', error);
+      toast.error('Failed to load order for editing');
+      throw error;
+    }
+  };
+
+  // Function to add order items to cart
+  const addOrderItemsToCart = async (orderItems: any[]): Promise<void> => {
+    if (!user) {
+      toast.error('Please login to edit order');
+      return;
+    }
+
+    try {
+      setCartLoading(true);
+      console.log('Adding order items to cart:', orderItems);
+      
+      // Clear existing cart first (both local and backend)
+      await clearCart();
+      
+      // Temporary array to hold new cart items
+      const newCartItems: CartItem[] = [];
+      
+      // Add each item from order to cart
+      for (const item of orderItems) {
+        console.log('Processing order item:', item);
+        
+        // Fetch complete product data
+        const productResponse = await fetch(`${baseurl}/get-product-by-id/${item.product_id}`);
+        let productData = null;
+        
+        if (productResponse.ok) {
+          productData = await productResponse.json();
+        }
+        
+        // Create product object
+        const product: Product = {
+          id: item.product_id.toString(),
+          name: item.item_name || productData?.name || 'Product',
+          description: productData?.description || '',
+          price: parseFloat(item.edited_sale_price) || parseFloat(item.sale_price) || 0,
+          mrp: parseFloat(item.mrp) || 0,
+          edited_sale_price: parseFloat(item.edited_sale_price) || parseFloat(item.sale_price) || 0,
+          unit: productData?.unit || 'Units',
+          images: productData?.images ? JSON.parse(productData.images) : [],
+          image: productData?.image || '',
+          category: productData?.category || '',
+          supplier: productData?.supplier || '',
+          stock: productData?.stock || 0,
+          gst_rate: parseFloat(item.tax_percentage) || parseFloat(productData?.gst_rate) || 0,
+          inclusive_gst: productData?.inclusive_gst || 'Exclusive'
+        };
+
+        // Add to backend cart
+        const response = await fetch(`${baseurl}/api/cart/add-to-cart`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            customer_id: user.id,
+            product_id: parseInt(item.product_id),
+            quantity: item.quantity,
+            credit_period: item.credit_period || 0,
+            credit_percentage: item.credit_percentage || 0
+          })
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('Failed to add item to cart:', errorText);
+          throw new Error('Failed to add item to cart');
+        }
+
+        const result = await response.json();
+        console.log('Backend cart response:', result);
+        
+        // Create cart item
+        const newCartItem: CartItem = {
+          id: result.id || result.cartItemId || `temp-${Date.now()}`,
+          product: product,
+          quantity: item.quantity,
+          creditPeriod: (item.credit_period || 0).toString(),
+          creditPercentage: item.credit_percentage || 0,
+          priceMultiplier: 1 + ((item.credit_percentage || 0) / 100)
+        };
+
+        newCartItems.push(newCartItem);
+      }
+      
+      // Update local cart state with all items
+      setCart(newCartItems);
+      
+      console.log('Cart updated with order items:', newCartItems);
+      toast.success('Order loaded for editing');
+      
+    } catch (error) {
+      console.error('Error adding order items to cart:', error);
+      toast.error('Failed to load order for editing');
+      // Sync with backend to restore cart
+      await syncCartWithBackend();
+    } finally {
+      setCartLoading(false);
+    }
+  };
+
   // Enhanced sync cart with backend
   const syncCartWithBackend = async (): Promise<void> => {
     if (!user) {
-      // If no user, clear localStorage cart
       localStorage.removeItem("appCart");
       setCart([]);
       return;
@@ -150,60 +256,60 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
     try {
       setCartLoading(true);
+      console.log('Syncing cart for user:', user.id);
+      
       const response = await fetch(`${baseurl}/api/cart/customer-cart/${user.id}`);
-      if (!response.ok) throw new Error('Failed to fetch cart');
+      if (!response.ok) {
+        console.error('Failed to fetch cart:', response.status);
+        throw new Error('Failed to fetch cart');
+      }
 
       const cartItems = await response.json();
+      console.log('Backend cart items:', cartItems);
 
-      // If cart is empty, clear local state
       if (!cartItems || cartItems.length === 0) {
         setCart([]);
         localStorage.removeItem("appCart");
         return;
       }
 
-      // First, fetch all products at once to get complete data
+      // Fetch all products at once for efficiency
       const productsResponse = await fetch(`${baseurl}/get-sales-products`);
-      if (!productsResponse.ok) throw new Error('Failed to fetch products');
+      if (!productsResponse.ok) {
+        console.error('Failed to fetch products:', productsResponse.status);
+        throw new Error('Failed to fetch products');
+      }
 
       const allProducts = await productsResponse.json();
-
-      // Create a map for quick lookup
       const productMap = new Map();
       allProducts.forEach((product: any) => {
         productMap.set(product.id.toString(), product);
       });
 
-      // Transform backend cart items to frontend format
+      // Transform backend cart items
       const transformedCart = cartItems.map((item: any) => {
         const productData = productMap.get(item.product_id.toString());
-
+        
         if (!productData) {
-          console.warn(`Product ${item.product_id} not found in products list`);
+          console.warn(`Product ${item.product_id} not found`);
           return null;
         }
 
-        // ✅ Normalize images exactly like fetchProducts
-let images: string[] = [];
+        // Process images
+        let images: string[] = [];
+        try {
+          if (Array.isArray(productData.images)) {
+            images = productData.images;
+          } else if (productData.images) {
+            images = JSON.parse(productData.images);
+          }
+        } catch {
+          images = [];
+        }
 
-try {
-  if (Array.isArray(productData.images)) {
-    images = productData.images;
-  } else if (productData.images) {
-    images = JSON.parse(productData.images);
-  }
-} catch {
-  images = [];
-}
-
-// Prefix baseurl
-const normalizedImages =
-  images.length > 0
-    ? images.map((img) =>
-        img.startsWith("http") ? img : `${baseurl}${img}`
-      )
-    : [flourImage];
-
+        const normalizedImages = images.length > 0
+          ? images.map((img) => img.startsWith("http") ? img : `${baseurl}${img}`)
+          : [flourImage];
 
         return {
           id: item.id,
@@ -212,18 +318,17 @@ const normalizedImages =
             name: productData.name || productData.goods_name || "Unknown Product",
             description: productData.description || "",
             price: parseFloat(productData.price) || 0,
+            mrp: parseFloat(productData.mrp) || 0,
+            edited_sale_price: parseFloat(productData.edited_sale_price) || parseFloat(productData.price) || 0,
             unit: productData.unit || "Units",
-// ✅ FIXED
-  images: normalizedImages,
-  image: normalizedImages[0],
-
+            images: normalizedImages,
+            image: normalizedImages[0],
             category: productData.category || "",
             supplier: productData.supplier || "Unknown Supplier",
             stock: productData.stock || 0,
             gst_rate: parseFloat(productData.gst_rate) || 0,
             inclusive_gst: productData.inclusive_gst || "Exclusive"
           },
-
           quantity: item.quantity,
           creditPeriod: item.credit_period?.toString() || "0",
           priceMultiplier: 1 + ((item.credit_percentage || 0) / 100),
@@ -231,20 +336,19 @@ const normalizedImages =
         };
       });
 
-      // Filter out any failed items and update cart
       const validCartItems = transformedCart.filter(item => item !== null) as CartItem[];
+      console.log('Transformed cart items:', validCartItems);
       setCart(validCartItems);
 
     } catch (error) {
       console.error('Error syncing cart:', error);
-      // Keep existing cart from localStorage if sync fails
     } finally {
       setCartLoading(false);
     }
   };
 
   // Add to Cart with backend sync
-  const addToCart = async (product: Product, quantity: number, ): Promise<void> => {
+  const addToCart = async (product: Product, quantity: number, creditPeriod?: string, creditPercentage?: number): Promise<void> => {
     if (!user) {
       toast.error('Please login to add items to cart');
       return;
@@ -252,35 +356,25 @@ const normalizedImages =
 
     try {
       setCartLoading(true);
-
-      // Check if product already exists in cart (local check first)
       const existingItemIndex = cart.findIndex(item => item.product.id === product.id);
 
       if (existingItemIndex >= 0) {
-        // Update quantity locally first for immediate feedback
         const updatedCart = [...cart];
         updatedCart[existingItemIndex].quantity += quantity;
         setCart(updatedCart);
-
-        // Show notification
         toast.success(`${product.name} quantity updated in cart!`);
 
-        // Update in backend
         const existingItem = cart[existingItemIndex];
         if (existingItem.id) {
-          const response = await fetch(`${baseurl}/api/cart/update-cart-quantity/${existingItem.id}`, {
+          await fetch(`${baseurl}/api/cart/update-cart-quantity/${existingItem.id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ quantity: updatedCart[existingItemIndex].quantity })
           });
-
-          if (!response.ok) throw new Error('Failed to update quantity in backend');
         }
-
         return;
       }
 
-      // If not existing, add to backend first
       const response = await fetch(`${baseurl}/api/cart/add-to-cart`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -288,35 +382,31 @@ const normalizedImages =
           customer_id: user.id,
           product_id: parseInt(product.id),
           quantity: quantity,
-          credit_period: 0,
-          credit_percentage: 0
+          credit_period: parseInt(creditPeriod || "0"),
+          credit_percentage: creditPercentage || 0
         })
       });
 
       if (!response.ok) throw new Error('Failed to add to cart');
 
-      // Get the new cart item ID from response if available
       const result = await response.json();
       const newCartItemId = result.id || result.cartItemId;
 
-      // Add to local cart immediately for better UX
       const newCartItem: CartItem = {
         id: newCartItemId,
         product: product,
         quantity: quantity,
-        creditPeriod: "0",
-        priceMultiplier: 1,
-        creditPercentage: 0
+        creditPeriod: creditPeriod || "0",
+        priceMultiplier: 1 + ((creditPercentage || 0) / 100),
+        creditPercentage: creditPercentage || 0
       };
 
       setCart(prev => [...prev, newCartItem]);
-
       toast.success(`${product.name} added to cart!`);
 
     } catch (error) {
       console.error('Error adding to cart:', error);
       toast.error('Failed to add item to cart');
-      // Revert local changes if backend fails
       await syncCartWithBackend();
     } finally {
       setCartLoading(false);
@@ -332,25 +422,19 @@ const normalizedImages =
       const itemToRemove = cart.find(item => item.product.id === productId);
       if (!itemToRemove) return;
 
-      // Remove from local state first for immediate feedback
       const newCart = cart.filter(item => item.product.id !== productId);
       setCart(newCart);
 
-      // Remove from backend if it has an ID (from database)
       if (itemToRemove.id) {
-        const response = await fetch(`${baseurl}/api/cart/remove-cart-item/${itemToRemove.id}`, {
+        await fetch(`${baseurl}/api/cart/remove-cart-item/${itemToRemove.id}`, {
           method: 'DELETE'
         });
-
-        if (!response.ok) throw new Error('Failed to remove from cart');
       }
 
       toast.info("Item removed from cart");
-
     } catch (error) {
       console.error('Error removing from cart:', error);
       toast.error('Failed to remove item from cart');
-      // Revert local changes if backend fails
       await syncCartWithBackend();
     } finally {
       setCartLoading(false);
@@ -371,31 +455,23 @@ const normalizedImages =
       const itemToUpdate = cart.find(item => item.product.id === productId);
       if (!itemToUpdate) return;
 
-      // Update local state first for immediate feedback
       const newCart = cart.map(item =>
         item.product.id === productId ? { ...item, quantity } : item
       );
       setCart(newCart);
 
-      // Update in backend if it has an ID
       if (itemToUpdate.id) {
-        const response = await fetch(`${baseurl}/api/cart/update-cart-quantity/${itemToUpdate.id}`, {
+        await fetch(`${baseurl}/api/cart/update-cart-quantity/${itemToUpdate.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ quantity })
         });
-
-        if (!response.ok) throw new Error('Failed to update quantity');
       }
 
-      // Show notification for quantity update
-      const product = itemToUpdate.product;
-      toast.success(`${product.name} quantity updated to ${quantity}`);
-
+      toast.success(`${itemToUpdate.product.name} quantity updated to ${quantity}`);
     } catch (error) {
       console.error('Error updating quantity:', error);
       toast.error('Failed to update quantity');
-      // Revert local changes if backend fails
       await syncCartWithBackend();
     } finally {
       setCartLoading(false);
@@ -414,7 +490,6 @@ const normalizedImages =
       let actualPercentage = percentage;
       let multiplier = 1;
 
-      // Calculate multiplier based on percentage or period
       if (percentage !== undefined) {
         multiplier = 1 + (percentage / 100);
       } else {
@@ -423,7 +498,6 @@ const normalizedImages =
         actualPercentage = creditPeriod ? creditPeriod.percentage : 0;
       }
 
-      // Update local state first for immediate feedback
       const newCart = cart.map(item =>
         item.product.id === productId
           ? {
@@ -436,9 +510,8 @@ const normalizedImages =
       );
       setCart(newCart);
 
-      // Update in backend if it has an ID
       if (itemToUpdate.id) {
-        const response = await fetch(`${baseurl}/api/cart/update-cart-credit/${itemToUpdate.id}`, {
+        await fetch(`${baseurl}/api/cart/update-cart-credit/${itemToUpdate.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -446,16 +519,12 @@ const normalizedImages =
             credit_percentage: actualPercentage
           })
         });
-
-        if (!response.ok) throw new Error('Failed to update credit period');
       }
 
       toast.success(`Credit set to ${period} days (+${actualPercentage}%)`);
-
     } catch (error) {
       console.error('Error updating credit period:', error);
       toast.error('Failed to update credit period');
-      // Revert local changes if backend fails
       await syncCartWithBackend();
     } finally {
       setCartLoading(false);
@@ -468,11 +537,9 @@ const normalizedImages =
 
     try {
       setCartLoading(true);
-      // Clear local state first
       setCart([]);
       localStorage.removeItem("appCart");
 
-      // Remove all items from backend
       for (const item of cart) {
         if (item.id) {
           await fetch(`${baseurl}/api/cart/remove-cart-item/${item.id}`, {
@@ -483,7 +550,6 @@ const normalizedImages =
     } catch (error) {
       console.error('Error clearing cart:', error);
       toast.error('Failed to clear cart');
-      // Revert local changes if backend fails
       await syncCartWithBackend();
     } finally {
       setCartLoading(false);
@@ -521,7 +587,6 @@ const normalizedImages =
   // Place Order
   const placeOrder = (items: CartItem[], address: any): string => {
     const orderId = `ORD${Date.now()}`;
-
     const total = items.reduce((sum, item) => {
       const itemTotal = item.product.price * item.quantity * item.priceMultiplier;
       return sum + itemTotal;
@@ -539,7 +604,6 @@ const normalizedImages =
 
     setOrders([newOrder, ...orders]);
     clearCart();
-
     return orderId;
   };
 
@@ -552,7 +616,6 @@ const normalizedImages =
     } else {
       localStorage.removeItem("appUser");
       setIsAuthenticated(false);
-      // Clear cart when logging out
       setCart([]);
       localStorage.removeItem("appCart");
     }
@@ -561,7 +624,7 @@ const normalizedImages =
   const login = (userData: User): boolean => {
     try {
       saveUser(userData);
-      syncCartWithBackend(); // Sync cart after login
+      syncCartWithBackend();
       toast.success(`Welcome back, ${userData.name || userData.business_name || userData.email}!`);
       return true;
     } catch (error) {
@@ -598,7 +661,7 @@ const normalizedImages =
         user,
         creditPeriods,
         loading,
-        cartLoading, // Expose cart loading state
+        cartLoading,
 
         addToCart,
         removeFromCart,
@@ -606,6 +669,9 @@ const normalizedImages =
         updateItemCreditPeriod,
         syncCartWithBackend,
         clearCart,
+
+        fetchOrderForEdit,
+        addOrderItemsToCart,
 
         addToWishlist,
         removeFromWishlist,

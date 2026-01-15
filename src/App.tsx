@@ -28,9 +28,6 @@ import EditProfile from "./pages/EditProfile";
 import Offers from "./pages/Offers";
 import PendingInvoice from "./pages/PendingInvoice";
 import Receipts from "./pages/Receipts";
-import EditCart from "./pages/EditCart";
-import EditCheckout from "./pages/Editcheckout";
-import OrderUpdatedConfirmation from "./pages/OrderUpdatedConfirmation";
 
 
 
@@ -52,8 +49,8 @@ const App = () => (
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/home" element={<Home />} />
             <Route path="/product/:id" element={<ProductDetails />} />
-            <Route path="/cart" element={<Cart />} />
-            
+      <Route path="/cart/:orderNumber" element={<Cart />} />
+<Route path="/cart" element={<Cart />} />
             <Route path="/wishlist" element={<Wishlist />} />
             <Route path="/checkout" element={<Checkout />} />
             <Route path="/order-confirmation" element={<OrderConfirmation />} />
@@ -64,13 +61,8 @@ const App = () => (
             <Route path="/inventory" element={<Inventory />} />
             <Route path="/invoice-download" element={<InvoiceDownload />} />
             <Route path="/edit-profile" element={<EditProfile />} />
-
             <Route path="/invoices" element={<PendingInvoice />} /> 
             <Route path="/receipts" element={<Receipts />} />
-            <Route path="/editcard" element={<EditCart />} />
-<Route path="/editcart/:orderNumber" element={<EditCart />} />
-<Route path="/edit-checkout/:orderNumber" element={<EditCheckout />} />
-<Route path="/order-updated-confirmation/:orderNumber" element={<OrderUpdatedConfirmation />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

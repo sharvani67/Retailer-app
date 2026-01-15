@@ -8,7 +8,6 @@ import { Label } from '@/components/ui/label';
 import { useApp } from '@/contexts/AppContext';
 import TabBar from '@/components/TabBar';
 import { baseurl } from '@/Api/Baseurl';
-import CreditLimitModal from '@/components/CreditLimitModal';
 
 const Checkout = () => {
   const navigate = useNavigate();
@@ -17,10 +16,8 @@ const Checkout = () => {
 
   const [userDetails, setUserDetails] = useState<any>(null);
   const [loadingUser, setLoadingUser] = useState(true);
-  const [showCreditPopup, setShowCreditPopup] = useState(false);
   const [orderMode, setOrderMode] = useState<'KACHA' | 'PAKKA'>('KACHA');
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
-
 
   // Get checkout data from location state
   const checkoutData = location.state;
@@ -38,6 +35,9 @@ const Checkout = () => {
     finalTotal: 0,
     userDiscount: 0
   };
+  
+  const isEditMode = checkoutData?.isEditMode || false;
+  const editOrderNumber = checkoutData?.orderNumber || null;
 
   useEffect(() => {
     const fetchUserDetails = async () => {
@@ -92,10 +92,8 @@ const Checkout = () => {
     setAddress({ ...address, [e.target.id]: e.target.value });
   };
 
-
-  
   const handlePlaceOrder = async () => {
-      if (isPlacingOrder) return; 
+    if (isPlacingOrder) return; 
     if (!user) {
       alert('Please login to place an order');
       return;
@@ -130,9 +128,8 @@ const Checkout = () => {
         }
       }
 
-      // Generate order number
-      const orderNumber = `ORD${Date.now()}`;
-      // const averageCreditPeriod = calculateAverageCreditPeriod(cartItems);
+      // Generate order number for new orders
+      const orderNumber = isEditMode ? editOrderNumber : `ORD${Date.now()}`;
       
       // Create order data for backend according to new calculation flow
       const orderData = {
@@ -144,7 +141,7 @@ const Checkout = () => {
         taxable_amount: orderTotals.totalTaxableAmount,
         tax_amount: orderTotals.totalTax,
         net_payable: orderTotals.finalTotal,
-        credit_period:  orderTotals.totalCreditCharges,
+        credit_period: orderTotals.totalCreditCharges,
         estimated_delivery_date: new Date(Date.now() + 5 * 86400000).toISOString().split('T')[0],
         order_placed_by: parseInt(user.id),
         ordered_by: userDetails?.name,
@@ -188,16 +185,23 @@ const Checkout = () => {
           cgst_amount: breakdown.perUnit.cgst_amount,
           final_amount: breakdown.perUnit.final_amount,
           quantity: item.quantity,
-          total_amount:breakdown.perUnit.total_amount,
+          total_amount: breakdown.perUnit.total_amount,
           discount_applied_scheme: breakdown.perUnit.discount_percentage > 0 ? 'user_discount' : 'none'
         };
       });
 
       console.log('Order Items:', orderItems);
 
+      // Determine API endpoint based on mode
+      const apiEndpoint = isEditMode 
+        ? `${baseurl}/orders/update-order/${orderNumber}`
+        : `${baseurl}/orders/create-complete-order`;
+
+      const apiMethod = isEditMode ? 'PUT' : 'POST';
+
       // Send to backend
-      const orderResponse = await fetch(`${baseurl}/orders/create-complete-order`, {
-        method: 'POST',
+      const orderResponse = await fetch(apiEndpoint, {
+        method: apiMethod,
         headers: {
           'Content-Type': 'application/json',
         },
@@ -209,16 +213,18 @@ const Checkout = () => {
 
       if (!orderResponse.ok) {
         const errorData = await orderResponse.json();
-        throw new Error(errorData.message || 'Failed to create order');
+        throw new Error(errorData.message || `Failed to ${isEditMode ? 'update' : 'create'} order`);
       }
 
       const orderResult = await orderResponse.json();
       console.log('Order Response:', orderResult);
       
-      
-      await clearCart();
+      // Clear cart only for new orders (not for edits)
+      if (!isEditMode) {
+        await clearCart();
+      }
 
-      
+      // Navigate to confirmation page
       navigate('/order-confirmation', {
         state: { 
           orderId: orderResult.order_number || orderData.order_number, 
@@ -227,16 +233,16 @@ const Checkout = () => {
           orderTotals,
           orderMode,
           staffName: assigned_staff,
-          staffIncentive: staff_incentive
+          staffIncentive: staff_incentive,
+          isEditMode: isEditMode
         },
       });
 
-   } catch (error: any) {
-  console.error('Error placing order:', error);
-  alert(`Failed to place order: ${error.message}`);
-  setIsPlacingOrder(false); // 🔓 re-enable button
-}
-
+    } catch (error: any) {
+      console.error('Error placing order:', error);
+      alert(`Failed to ${isEditMode ? 'update' : 'place'} order: ${error.message}`);
+      setIsPlacingOrder(false); // 🔓 re-enable button
+    }
   };
 
   return (
@@ -251,7 +257,9 @@ const Checkout = () => {
           >
             <ArrowLeft className="h-6 w-6" />
           </motion.button>
-          <span className="font-semibold">Checkout</span>
+          <span className="font-semibold">
+            {isEditMode ? 'Update Order' : 'Checkout'}
+          </span>
           <div className="w-10" />
         </div>
       </header>
@@ -336,7 +344,6 @@ const Checkout = () => {
 
           {/* Order Total Breakdown */}
           <div className="border-t border-border pt-4 space-y-3">
-          
             {/* Credit Charges */}
             {orderTotals.totalCreditCharges > 0 && (
               <div className="flex justify-between text-muted-foreground">
@@ -348,7 +355,6 @@ const Checkout = () => {
               </div>
             )}
 
-
             {/* Discount */}
             {orderTotals.totalDiscount > 0 && (
               <div className="flex justify-between text-green-600">
@@ -359,7 +365,6 @@ const Checkout = () => {
                 <span className="font-semibold">-₹{orderTotals.totalDiscount.toLocaleString()}</span>
               </div>
             )}
-
 
             {/* Taxable Amount */}
             {orderTotals.totalTax > 0 && (
@@ -376,7 +381,6 @@ const Checkout = () => {
                 <span>+₹{orderTotals.totalTax.toLocaleString()}</span>
               </div>
             )}
-
 
             {/* Final Total */}
             <div className="border-t border-border pt-3 flex justify-between text-xl font-bold">
@@ -396,6 +400,15 @@ const Checkout = () => {
               </span>
             </div>
 
+            {/* Order Type Display */}
+            {isEditMode && (
+              <div className="flex justify-between items-center pt-1">
+                <span className="text-sm text-muted-foreground">Order Type:</span>
+                <span className="px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800 border border-blue-200">
+                  Edit Mode
+                </span>
+              </div>
+            )}
 
             {/* Savings Message */}
             {orderTotals.totalDiscount > 0 && (
@@ -428,20 +441,19 @@ const Checkout = () => {
             }
           >
             {isPlacingOrder ? (
-    <span className="flex items-center justify-center gap-2">
-      <span className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full" />
-      Placing Order...
-    </span>
-  ) : (
-    <>Place Order - ₹{orderTotals.finalTotal.toLocaleString()}</>
-  )}
+              <span className="flex items-center justify-center gap-2">
+                <span className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full" />
+                {isEditMode ? "Updating Order..." : "Placing Order..."}
+              </span>
+            ) : (
+              <>{isEditMode ? "Update Order" : "Place Order"} - ₹{orderTotals.finalTotal.toLocaleString()}</>
+            )}
           </Button>
           <p className="text-xs text-center text-muted-foreground mt-2">
-            By placing this order, you agree to our terms and conditions
+            By {isEditMode ? 'updating' : 'placing'} this order, you agree to our terms and conditions
           </p>
         </motion.div>
       </main>
-
 
       <TabBar />
     </div>

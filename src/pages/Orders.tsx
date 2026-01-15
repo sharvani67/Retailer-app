@@ -63,7 +63,7 @@ interface ApiOrder {
 }
 
 const Orders = () => {
-  const { user } = useApp();
+  const { user, clearCart } = useApp(); // Add clearCart here
   const navigate = useNavigate();
   const [orders, setOrders] = useState<ApiOrder[]>([]);
   const [loading, setLoading] = useState(true);
@@ -178,8 +178,7 @@ const Orders = () => {
     });
   };
 
-
-   const handleDownloadInvoice = (orderNumber: string) => {
+  const handleDownloadInvoice = (orderNumber: string) => {
     navigate('/invoice-download', { 
       state: { 
         orderNumber: orderNumber,
@@ -308,8 +307,6 @@ const Orders = () => {
     }
   };
 
-
-
   // Format date for display
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-IN', {
@@ -331,10 +328,32 @@ const Orders = () => {
     return formatDate(estimatedDate.toISOString());
   };
 
-// In your Orders.tsx component
-const handleEditOrder = (orderNumber: string) => {
-navigate(`/editcart/${orderNumber}`);
-};
+  // Enhanced Edit Order function
+  const handleEditOrder = async (orderNumber: string) => {
+    try {
+      // Clear existing cart first
+      await clearCart();
+      
+      // Fetch order details to load into cart
+      const response = await fetch(`${baseurl}/orders/details/${orderNumber}`);
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch order details');
+      }
+      
+      const orderDetails = await response.json();
+      
+      // You might want to store the order details in state or context
+      // to pre-load the cart with these items
+      console.log('Order details for editing:', orderDetails);
+      
+      // Navigate to cart with order number for editing
+      navigate(`/cart/${orderNumber}`);
+    } catch (error) {
+      console.error('Error preparing to edit order:', error);
+      alert('Failed to load order for editing. Please try again.');
+    }
+  };
 
   // Loading state
   if (loading) {
@@ -585,82 +604,80 @@ navigate(`/editcart/${orderNumber}`);
                   </Button>
                 )}
 
-         {canCancelOrder(order) && (
-  <div className="flex gap-2">
-    
-    {/* EDIT ORDER BUTTON */}
-    <Button
-      variant="outline"
-      size="sm"
-      onClick={() => handleEditOrder(order.order_number)}
-      className="flex-1 flex items-center justify-center gap-2"
-    >
-      <Edit className="h-4 w-4" />
-      Edit
-    </Button>
+                {/* Edit & Cancel Buttons - Only if order can be cancelled */}
+                {canCancelOrder(order) && (
+                  <div className="flex gap-2">
+                    {/* EDIT ORDER BUTTON */}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleEditOrder(order.order_number)}
+                      className="flex-1 flex items-center justify-center gap-2"
+                    >
+                      <Edit className="h-4 w-4" />
+                      Edit
+                    </Button>
 
-    {/* CANCEL ORDER BUTTON */}
-    <AlertDialog>
-      <AlertDialogTrigger asChild>
-        <Button
-          variant="destructive"
-          size="sm"
-          disabled={cancellingOrder === order.order_number}
-          className="flex-1 flex items-center justify-center gap-2"
-        >
-          {cancellingOrder === order.order_number ? (
-            <>
-              <motion.div
-                animate={{ rotate: 360 }}
-                transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-              >
-                <RefreshCw className="h-4 w-4" />
-              </motion.div>
-              Cancelling...
-            </>
-          ) : (
-            <>
-              <X className="h-4 w-4" />
-              Cancel
-            </>
-          )}
-        </Button>
-      </AlertDialogTrigger>
+                    {/* CANCEL ORDER BUTTON */}
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          disabled={cancellingOrder === order.order_number}
+                          className="flex-1 flex items-center justify-center gap-2"
+                        >
+                          {cancellingOrder === order.order_number ? (
+                            <>
+                              <motion.div
+                                animate={{ rotate: 360 }}
+                                transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                              >
+                                <RefreshCw className="h-4 w-4" />
+                              </motion.div>
+                              Cancelling...
+                            </>
+                          ) : (
+                            <>
+                              <X className="h-4 w-4" />
+                              Cancel
+                            </>
+                          )}
+                        </Button>
+                      </AlertDialogTrigger>
 
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Cancel Order</AlertDialogTitle>
-          <AlertDialogDescription>
-            Are you sure you want to cancel order{" "}
-            <span className="font-semibold">{order.order_number}</span>? 
-            This action cannot be undone.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>Keep Order</AlertDialogCancel>
-          <AlertDialogAction
-            onClick={async () => {
-              try {
-                await handleCancelOrder(order.order_number);
-              } catch (error) {
-                alert(
-                  error instanceof Error
-                    ? error.message
-                    : "Failed to cancel order"
-                );
-              }
-            }}
-            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-          >
-            Yes, Cancel Order
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
-
-  </div>
-)}
-
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Cancel Order</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Are you sure you want to cancel order{" "}
+                            <span className="font-semibold">{order.order_number}</span>? 
+                            This action cannot be undone.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Keep Order</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={async () => {
+                              try {
+                                await handleCancelOrder(order.order_number);
+                              } catch (error) {
+                                alert(
+                                  error instanceof Error
+                                    ? error.message
+                                    : "Failed to cancel order"
+                                );
+                              }
+                            }}
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                          >
+                            Yes, Cancel Order
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </div>
+                )}
               </div>
             )}
 

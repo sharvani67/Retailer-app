@@ -8,36 +8,38 @@ import confetti from 'canvas-confetti';
 const OrderConfirmation = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { orderId, total } = location.state || {};
+  const { orderId, total, isEditMode } = location.state || {};
 
   useEffect(() => {
-    // Trigger confetti animation
-    const duration = 3000;
-    const end = Date.now() + duration;
+    // Trigger confetti animation only for new orders
+    if (!isEditMode) {
+      const duration = 3000;
+      const end = Date.now() + duration;
 
-    const colors = ['#6366f1', '#8b5cf6', '#10b981'];
+      const colors = ['#6366f1', '#8b5cf6', '#10b981'];
 
-    (function frame() {
-      confetti({
-        particleCount: 3,
-        angle: 60,
-        spread: 55,
-        origin: { x: 0 },
-        colors: colors,
-      });
-      confetti({
-        particleCount: 3,
-        angle: 120,
-        spread: 55,
-        origin: { x: 1 },
-        colors: colors,
-      });
+      (function frame() {
+        confetti({
+          particleCount: 3,
+          angle: 60,
+          spread: 55,
+          origin: { x: 0 },
+          colors: colors,
+        });
+        confetti({
+          particleCount: 3,
+          angle: 120,
+          spread: 55,
+          origin: { x: 1 },
+          colors: colors,
+        });
 
-      if (Date.now() < end) {
-        requestAnimationFrame(frame);
-      }
-    })();
-  }, []);
+        if (Date.now() < end) {
+          requestAnimationFrame(frame);
+        }
+      })();
+    }
+  }, [isEditMode]);
 
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6">
@@ -48,8 +50,11 @@ const OrderConfirmation = () => {
         className="mb-8"
       >
         <div className="relative">
-          <div className="bg-success/10 rounded-full p-8">
-            <CheckCircle className="h-24 w-24 text-success" strokeWidth={1.5} />
+          <div className={`rounded-full p-8 ${isEditMode ? 'bg-blue-100' : 'bg-success/10'}`}>
+            <CheckCircle 
+              className={`h-24 w-24 ${isEditMode ? 'text-blue-600' : 'text-success'}`} 
+              strokeWidth={1.5} 
+            />
           </div>
           <motion.div
             initial={{ scale: 0 }}
@@ -69,9 +74,13 @@ const OrderConfirmation = () => {
         className="text-center space-y-6 max-w-md"
       >
         <div className="space-y-3">
-          <h1 className="text-3xl font-bold">Order Placed Successfully!</h1>
+          <h1 className="text-3xl font-bold">
+            {isEditMode ? 'Order Updated Successfully!' : 'Order Placed Successfully!'}
+          </h1>
           <p className="text-lg text-muted-foreground">
-            Thank you for your order. We'll process it right away!
+            {isEditMode 
+              ? 'Your order has been updated successfully.' 
+              : 'Thank you for your order. We\'ll process it right away!'}
           </p>
         </div>
 
