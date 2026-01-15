@@ -1,5 +1,14 @@
 import { motion } from 'framer-motion';
-import { Package, ChevronRight, Download, RefreshCw, X, Check, X as XIcon } from 'lucide-react';
+import {
+  Package,
+  ChevronRight,
+  Download,
+  RefreshCw,
+  X,
+  Check,
+  X as XIcon,
+  Edit
+} from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import TabBar from '@/components/TabBar';
@@ -49,7 +58,7 @@ interface ApiOrder {
   ordered_by: string;
   order_status: string;
   invoice_status: number;
-  approval_status?: string; // 'Pending', 'Approved', 'Rejected'
+  approval_status?: string; 
   items?: OrderItem[];
 }
 
@@ -299,6 +308,8 @@ const Orders = () => {
     }
   };
 
+
+
   // Format date for display
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-IN', {
@@ -319,6 +330,11 @@ const Orders = () => {
     const estimatedDate = new Date(orderDate.setDate(orderDate.getDate() + 5));
     return formatDate(estimatedDate.toISOString());
   };
+
+// In your Orders.tsx component
+const handleEditOrder = (orderNumber: string) => {
+navigate(`/editcart/${orderNumber}`);
+};
 
   // Loading state
   if (loading) {
@@ -569,60 +585,82 @@ const Orders = () => {
                   </Button>
                 )}
 
-                {/* Cancel Order Button - Show only if invoice_status is 0 and order_status is pending */}
-                {canCancelOrder(order) && (
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        disabled={cancellingOrder === order.order_number}
-                        className="w-full flex items-center justify-center gap-2"
-                      >
-                        {cancellingOrder === order.order_number ? (
-                          <>
-                            <motion.div
-                              animate={{ rotate: 360 }}
-                              transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                            >
-                              <RefreshCw className="h-4 w-4" />
-                            </motion.div>
-                            Cancelling...
-                          </>
-                        ) : (
-                          <>
-                            <X className="h-4 w-4" />
-                            Cancel Order
-                          </>
-                        )}
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Cancel Order</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          Are you sure you want to cancel order <span className="font-semibold">{order.order_number}</span>? 
-                          This action cannot be undone.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Keep Order</AlertDialogCancel>
-                        <AlertDialogAction
-                          onClick={async () => {
-                            try {
-                              await handleCancelOrder(order.order_number);
-                            } catch (error) {
-                              alert(error instanceof Error ? error.message : 'Failed to cancel order');
-                            }
-                          }}
-                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                        >
-                          Yes, Cancel Order
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                )}
+         {canCancelOrder(order) && (
+  <div className="flex gap-2">
+    
+    {/* EDIT ORDER BUTTON */}
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={() => handleEditOrder(order.order_number)}
+      className="flex-1 flex items-center justify-center gap-2"
+    >
+      <Edit className="h-4 w-4" />
+      Edit
+    </Button>
+
+    {/* CANCEL ORDER BUTTON */}
+    <AlertDialog>
+      <AlertDialogTrigger asChild>
+        <Button
+          variant="destructive"
+          size="sm"
+          disabled={cancellingOrder === order.order_number}
+          className="flex-1 flex items-center justify-center gap-2"
+        >
+          {cancellingOrder === order.order_number ? (
+            <>
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+              >
+                <RefreshCw className="h-4 w-4" />
+              </motion.div>
+              Cancelling...
+            </>
+          ) : (
+            <>
+              <X className="h-4 w-4" />
+              Cancel
+            </>
+          )}
+        </Button>
+      </AlertDialogTrigger>
+
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Cancel Order</AlertDialogTitle>
+          <AlertDialogDescription>
+            Are you sure you want to cancel order{" "}
+            <span className="font-semibold">{order.order_number}</span>? 
+            This action cannot be undone.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Keep Order</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={async () => {
+              try {
+                await handleCancelOrder(order.order_number);
+              } catch (error) {
+                alert(
+                  error instanceof Error
+                    ? error.message
+                    : "Failed to cancel order"
+                );
+              }
+            }}
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+          >
+            Yes, Cancel Order
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+
+  </div>
+)}
+
               </div>
             )}
 

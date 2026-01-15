@@ -23,6 +23,7 @@ export interface User {
   assigned_staff: string;
   credit_limit: number;
   unpaid_amount: number;
+  mobile?: string;   // ✅ ADD THIS
 }
 
 interface AppContextType {
@@ -32,11 +33,14 @@ interface AppContextType {
   isAuthenticated: boolean;
   user: User | null;
   creditPeriods: CreditPeriod[];
+     creditPeriod?: string,
+    creditPercentage?: number
   loading: boolean;
   cartLoading: boolean; // Add cart-specific loading state
 
   // Cart operations
-  addToCart: (product: Product, quantity: number) => Promise<void>;
+  addToCart: (product: Product, quantity: number, creditPeriod?: string,
+  creditPercentage?: number) => Promise<void>;
   removeFromCart: (productId: string) => Promise<void>;
   updateCartQuantity: (productId: string, quantity: number) => Promise<void>;
   updateItemCreditPeriod: (productId: string, period: string, percentage?: number) => Promise<void>;
@@ -240,7 +244,7 @@ const normalizedImages =
   };
 
   // Add to Cart with backend sync
-  const addToCart = async (product: Product, quantity: number): Promise<void> => {
+  const addToCart = async (product: Product, quantity: number, ): Promise<void> => {
     if (!user) {
       toast.error('Please login to add items to cart');
       return;
