@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { ArrowLeft, Minus, Plus, Trash2, ShoppingBag, Tag, Receipt, CreditCard, Loader2 } from 'lucide-react';
+import { ArrowLeft, Minus, Plus, Trash2, ShoppingBag, Tag, Receipt, CreditCard, Loader2, TagIcon, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import TabBar from '@/components/TabBar';
 import { useApp } from '@/contexts/AppContext';
@@ -32,6 +32,9 @@ const Cart = () => {
   const [loading, setLoading] = useState(true);
   const [isEditMode, setIsEditMode] = useState(false);
   const [editOrderNumber, setEditOrderNumber] = useState<string | null>(null);
+  const [categoryDiscounts, setCategoryDiscounts] = useState<Record<string, number>>({});
+  const [loadingCategories, setLoadingCategories] = useState(true);
+  const [productCategoryMap, setProductCategoryMap] = useState<Record<string, number>>({});
 
   // Check if this is edit mode
   useEffect(() => {
@@ -44,6 +47,63 @@ const Cart = () => {
       setEditOrderNumber(null);
     }
   }, [orderNumber]);
+
+  // Fetch category discounts
+  useEffect(() => {
+    const loadCategoryDiscounts = async () => {
+      try {
+        setLoadingCategories(true);
+        // Fetch categories with discounts from API
+        const response = await fetch('http://localhost:5000/categories');
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const categories = await response.json();
+        
+        const discountMap: Record<string, number> = {};
+        const productMap: Record<string, number> = {};
+        
+        if (Array.isArray(categories)) {
+          categories.forEach((category: any) => {
+            // Store category discount if it exists
+            if (category.discount > 0) {
+              discountMap[category.id] = parseFloat(category.discount) || 0;
+            }
+          });
+        }
+        
+        setCategoryDiscounts(discountMap);
+        
+        // Also fetch products to map product IDs to category IDs
+        try {
+          const productsResponse = await fetch('http://localhost:5000/get-sales-products');
+          if (productsResponse.ok) {
+            const products = await productsResponse.json();
+            const productsArray = Array.isArray(products) ? products : (products.data || []);
+            
+            productsArray.forEach((product: any) => {
+              if (product.category_id) {
+                productMap[product.id] = product.category_id;
+              }
+            });
+            
+            setProductCategoryMap(productMap);
+          }
+        } catch (productError) {
+          console.error('Error fetching products for category mapping:', productError);
+        }
+        
+      } catch (error) {
+        console.error('Error fetching category discounts:', error);
+      } finally {
+        setLoadingCategories(false);
+      }
+    };
+
+    loadCategoryDiscounts();
+  }, []);
 
   // Fetch data on component mount
   useEffect(() => {
@@ -89,10 +149,29 @@ const Cart = () => {
     initializeCart();
   }, [user, isEditMode, editOrderNumber]);
 
-  // Get user discount percentage
+  // Get user discount percentage (retailer discount)
   const userDiscountPercentage = user?.discount ? parseFloat(user.discount) : 0;
 
-  // Calculate item price breakdown
+  // Get category discount for a product
+  const getProductCategoryDiscount = (product: any) => {
+    if (!product || !product.id) return 0;
+    
+    // Try to get category ID from product
+    const categoryId = product.category_id || productCategoryMap[product.id];
+    
+    if (categoryId && categoryDiscounts[categoryId]) {
+      return categoryDiscounts[categoryId];
+    }
+    
+    return 0;
+  };
+
+  // Check if product has category discount
+  const hasCategoryDiscount = (product: any) => {
+    return getProductCategoryDiscount(product) > 0;
+  };
+
+  // Calculate item price breakdown with priority: Category discount > Retailer discount
   const calculateItemBreakdown = (item: any) => {
     const mrp = item.product.mrp || 0;
     const salePrice = item.product.price || 0;
@@ -102,16 +181,32 @@ const Cart = () => {
     const quantity = item.quantity || 1;
     const creditPercentage = item.creditPercentage || 0;
 
-    // Calculate credit charge
+    // Get category discount for this product
+    const categoryDiscountPercentage = getProductCategoryDiscount(item.product);
+    
+    // Determine which discount to apply: Category discount takes priority over retailer discount
+    const applicableDiscountPercentage = categoryDiscountPercentage > 0 ? categoryDiscountPercentage : userDiscountPercentage;
+    const discountType = categoryDiscountPercentage > 0 ? 'category' : (userDiscountPercentage > 0 ? 'retailer' : 'none');
+
+    console.log(`Product ${item.product.id} (${item.product.name}):`);
+    console.log(`- Category discount = ${categoryDiscountPercentage}%`);
+    console.log(`- Retailer discount = ${userDiscountPercentage}%`);
+    console.log(`- Applied discount = ${applicableDiscountPercentage}% (${discountType})`);
+
+    // Step 1: Calculate credit charge (percentage of edited_sale_price)
     const creditChargePerUnit = (editedSalePrice * creditPercentage) / 100;
-    const customerSalePricePerUnit = editedSalePrice + creditChargePerUnit;
 
-    // Calculate discount
-    const discountPercentage = userDiscountPercentage;
-    const discountAmountPerUnit = (customerSalePricePerUnit * discountPercentage) / 100;
-    const itemTotalPerUnit = customerSalePricePerUnit - discountAmountPerUnit;
+    // Step 2: Calculate price after credit charge
+    const priceAfterCredit = editedSalePrice + creditChargePerUnit;
 
-    // Calculate tax
+    // Step 3: Apply applicable discount (either category or retailer, but not both)
+    const discountAmountPerUnit = applicableDiscountPercentage > 0 ? (priceAfterCredit * applicableDiscountPercentage) / 100 : 0;
+    const priceAfterDiscount = priceAfterCredit - discountAmountPerUnit;
+
+    // Step 4: Calculate item total (before tax)
+    const itemTotalPerUnit = priceAfterDiscount;
+
+    // Step 5: Calculate tax (GST handling based on inclusive/exclusive)
     let taxableAmountPerUnit = 0;
     let taxAmountPerUnit = 0;
 
@@ -123,24 +218,40 @@ const Cart = () => {
       taxAmountPerUnit = (taxableAmountPerUnit * gstRate) / 100;
     }
 
-    // Calculate CGST/SGST
+    // Calculate CGST/SGST (split equally)
     const sgstPercentage = gstRate / 2;
     const cgstPercentage = gstRate / 2;
     const sgstAmountPerUnit = taxAmountPerUnit / 2;
     const cgstAmountPerUnit = taxAmountPerUnit / 2;
 
-    // Calculate final amount per unit
+    // Calculate final amount per unit (including tax if exclusive)
     const finalAmountPerUnit = isInclusiveGST ? itemTotalPerUnit : itemTotalPerUnit + taxAmountPerUnit;
 
+    // Calculate totals for the quantity
+    const totalMRP = mrp * quantity;
+    const totalSalePrice = salePrice * quantity;
+    const totalEditedSalePrice = editedSalePrice * quantity;
+    const totalCreditCharge = creditChargePerUnit * quantity;
+    const totalDiscountAmount = discountAmountPerUnit * quantity;
+    const totalItemTotal = itemTotalPerUnit * quantity;
+    const totalTaxableAmount = taxableAmountPerUnit * quantity;
+    const totalTaxAmount = taxAmountPerUnit * quantity;
+    const totalSgstAmount = sgstAmountPerUnit * quantity;
+    const totalCgstAmount = cgstAmountPerUnit * quantity;
+    const finalPayableAmount = finalAmountPerUnit * quantity;
+
     return {
+      // Per unit values
       mrp,
       sale_price: salePrice,
       edited_sale_price: editedSalePrice,
       credit_charge: creditChargePerUnit,
       credit_period: item.creditPeriod,
       credit_percentage: creditPercentage,
-      customer_sale_price: customerSalePricePerUnit,
-      discount_percentage: discountPercentage,
+      discount_type: discountType,
+      category_discount_percentage: categoryDiscountPercentage,
+      retailer_discount_percentage: userDiscountPercentage,
+      applicable_discount_percentage: applicableDiscountPercentage,
       discount_amount: discountAmountPerUnit,
       item_total: itemTotalPerUnit,
       taxable_amount: taxableAmountPerUnit,
@@ -152,22 +263,24 @@ const Cart = () => {
       cgst_amount: cgstAmountPerUnit,
       final_amount: finalAmountPerUnit,
       total_amount: finalAmountPerUnit * quantity,
+      
+      // For display purposes
       isInclusiveGST,
       quantity,
       
+      // Totals for the entire quantity
       totals: {
-        totalMRP: mrp * quantity,
-        totalSalePrice: salePrice * quantity,
-        totalEditedSalePrice: editedSalePrice * quantity,
-        totalCreditCharge: creditChargePerUnit * quantity,
-        totalCustomerSalePrice: customerSalePricePerUnit * quantity,
-        totalDiscountAmount: discountAmountPerUnit * quantity,
-        totalItemTotal: itemTotalPerUnit * quantity,
-        totalTaxableAmount: taxableAmountPerUnit * quantity,
-        totalTaxAmount: taxAmountPerUnit * quantity,
-        totalSgstAmount: sgstAmountPerUnit * quantity,
-        totalCgstAmount: cgstAmountPerUnit * quantity,
-        finalPayableAmount: finalAmountPerUnit * quantity
+        totalMRP,
+        totalSalePrice,
+        totalEditedSalePrice,
+        totalCreditCharge,
+        totalDiscountAmount,
+        totalItemTotal,
+        totalTaxableAmount,
+        totalTaxAmount,
+        totalSgstAmount,
+        totalCgstAmount,
+        finalPayableAmount
       }
     };
   };
@@ -191,8 +304,10 @@ const Cart = () => {
             credit_charge: breakdown.credit_charge,
             credit_period: breakdown.credit_period,
             credit_percentage: breakdown.credit_percentage,
-            customer_sale_price: breakdown.customer_sale_price,
-            discount_percentage: breakdown.discount_percentage,
+            discount_type: breakdown.discount_type,
+            category_discount_percentage: breakdown.category_discount_percentage,
+            retailer_discount_percentage: breakdown.retailer_discount_percentage,
+            applicable_discount_percentage: breakdown.applicable_discount_percentage,
             discount_amount: breakdown.discount_amount,
             item_total: breakdown.item_total,
             taxable_amount: breakdown.taxable_amount,
@@ -213,7 +328,10 @@ const Cart = () => {
       };
     });
 
-    // Calculate order totals
+    // Calculate order totals with separate tracking for category vs retailer discounts
+    let totalCategoryDiscounts = 0;
+    let totalRetailerDiscounts = 0;
+    
     const orderTotals = {
       subtotal: cart.reduce((sum, item) => {
         const breakdown = calculateItemBreakdown(item);
@@ -225,9 +343,22 @@ const Cart = () => {
         return sum + breakdown.totals.totalCreditCharge;
       }, 0),
       
-      totalCustomerSalePrice: cart.reduce((sum, item) => {
+      totalCategoryDiscounts: cart.reduce((sum, item) => {
         const breakdown = calculateItemBreakdown(item);
-        return sum + breakdown.totals.totalCustomerSalePrice;
+        if (breakdown.discount_type === 'category') {
+          totalCategoryDiscounts += breakdown.totals.totalDiscountAmount;
+          return sum + breakdown.totals.totalDiscountAmount;
+        }
+        return sum;
+      }, 0),
+      
+      totalRetailerDiscounts: cart.reduce((sum, item) => {
+        const breakdown = calculateItemBreakdown(item);
+        if (breakdown.discount_type === 'retailer') {
+          totalRetailerDiscounts += breakdown.totals.totalDiscountAmount;
+          return sum + breakdown.totals.totalDiscountAmount;
+        }
+        return sum;
       }, 0),
       
       totalDiscount: cart.reduce((sum, item) => {
@@ -265,7 +396,10 @@ const Cart = () => {
         return sum + breakdown.totals.finalPayableAmount;
       }, 0),
       
-      userDiscount: userDiscountPercentage
+      userDiscount: userDiscountPercentage,
+      totalCategoryDiscountsValue: totalCategoryDiscounts,
+      totalRetailerDiscountsValue: totalRetailerDiscounts,
+      itemCount: cart.reduce((sum, item) => sum + (item.quantity || 1), 0)
     };
 
     return { orderItems, orderTotals };
@@ -313,6 +447,40 @@ const Cart = () => {
     }
   };
 
+  // Get discount badge for a product
+  const getDiscountBadge = (product: any) => {
+    const categoryDiscount = getProductCategoryDiscount(product);
+    
+    if (categoryDiscount > 0) {
+      return (
+        <span className="inline-flex items-center gap-1 bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full">
+          <TagIcon className="h-3 w-3" />
+          {categoryDiscount}% Category Discount
+        </span>
+      );
+    } else if (userDiscountPercentage > 0) {
+      return (
+        <span className="inline-flex items-center gap-1 bg-purple-100 text-purple-800 text-xs px-2 py-1 rounded-full">
+          <User className="h-3 w-3" />
+          {userDiscountPercentage}% Retailer Discount
+        </span>
+      );
+    }
+    return null;
+  };
+
+  // Get discount type display
+  const getDiscountTypeDisplay = (product: any) => {
+    const categoryDiscount = getProductCategoryDiscount(product);
+    
+    if (categoryDiscount > 0) {
+      return `Category Discount (${categoryDiscount}%)`;
+    } else if (userDiscountPercentage > 0) {
+      return `Retailer Discount (${userDiscountPercentage}%)`;
+    }
+    return "No Discount";
+  };
+
   // Checkout/Update handler
   const handleCheckout = () => {
     if (!user) {
@@ -343,7 +511,7 @@ const Cart = () => {
     }
   };
 
-  if (loading) {
+  if (loading || loadingCategories) {
     return (
       <div className="min-h-screen bg-background pb-20">
         <header className="sticky top-0 z-40 bg-background/95 backdrop-blur-lg border-b border-border">
@@ -431,6 +599,11 @@ const Cart = () => {
   // Get current order summary for display
   const { orderItems, orderTotals } = calculateOrderSummary();
 
+  // Calculate how many items have category discounts
+  const itemsWithCategoryDiscount = cart.filter(item => 
+    hasCategoryDiscount(item.product)
+  ).length;
+
   return (
     <div className="min-h-screen bg-background pb-28">
       <header className="sticky top-0 z-40 bg-background/95 backdrop-blur-lg border-b border-border">
@@ -469,8 +642,49 @@ const Cart = () => {
           </motion.div>
         )}
 
-        {/* USER DISCOUNT BANNER */}
-        {userDiscountPercentage > 0 && (
+        {/* DISCOUNT BANNERS */}
+        {orderTotals.totalCategoryDiscountsValue > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-gradient-to-r from-blue-500 to-cyan-600 rounded-2xl p-4 text-white shadow-lg"
+          >
+            <div className="flex items-center gap-3">
+              <TagIcon className="h-5 w-5" />
+              <div>
+                <p className="font-semibold">Category Discounts Applied!</p>
+                <p className="text-sm opacity-90">
+                  {itemsWithCategoryDiscount} item(s) with category discounts
+                  <br />
+                  <span className="font-bold">Saved: ₹{orderTotals.totalCategoryDiscountsValue.toLocaleString()}</span>
+                  <span className="ml-2 text-xs opacity-75">(Priority over retailer discount)</span>
+                </p>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {orderTotals.totalRetailerDiscountsValue > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-gradient-to-r from-purple-500 to-pink-600 rounded-2xl p-4 text-white shadow-lg"
+          >
+            <div className="flex items-center gap-3">
+              <User className="h-5 w-5" />
+              <div>
+                <p className="font-semibold">Retailer Discount Applied!</p>
+                <p className="text-sm opacity-90">
+                  Applied to {cart.length - itemsWithCategoryDiscount} item(s) without category discounts
+                  <br />
+                  <span className="font-bold">Saved: ₹{orderTotals.totalRetailerDiscountsValue.toLocaleString()}</span>
+                </p>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {userDiscountPercentage > 0 && orderTotals.totalCategoryDiscountsValue === 0 && orderTotals.totalRetailerDiscountsValue === 0 && (
           <motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -479,9 +693,10 @@ const Cart = () => {
             <div className="flex items-center gap-3">
               <Tag className="h-5 w-5" />
               <div>
-                <p className="font-semibold">Special Discount Applied!</p>
+                <p className="font-semibold">Retailer Discount Available!</p>
                 <p className="text-sm opacity-90">
-                  You're getting {userDiscountPercentage}% off on all items as a valued customer
+                  Your {userDiscountPercentage}% retailer discount will be applied at checkout
+                  (Category discounts have priority)
                 </p>
               </div>
             </div>
@@ -492,6 +707,7 @@ const Cart = () => {
         {cart.map((item, index) => {
           const breakdown = calculateItemBreakdown(item);
           const finalPayableAmount = breakdown.totals.finalPayableAmount;
+          const hasCatDiscount = hasCategoryDiscount(item.product);
 
           return (
             <motion.div
@@ -511,11 +727,11 @@ const Cart = () => {
                 <div className="flex-1">
                   {/* Product Header */}
                   <div className="flex justify-between items-start mb-2">
-                    <div>
+                    <div className="flex-1">
                       <h3 className="font-semibold line-clamp-2 text-base">
                         {item.product.name}
                       </h3>
-                      <div className="flex items-center gap-2 mt-1">
+                      <div className="flex items-center gap-2 mt-1 flex-wrap">
                         <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded">
                           {breakdown.isInclusiveGST ? 'Incl. GST' : 'Excl. GST'}
                         </span>
@@ -529,6 +745,7 @@ const Cart = () => {
                             Discounted
                           </span>
                         )}
+                        {getDiscountBadge(item.product)}
                       </div>
                     </div>
                     
@@ -558,12 +775,26 @@ const Cart = () => {
                         ₹{breakdown.edited_sale_price.toLocaleString()}
                       </span>
                       <span className="text-sm text-muted-foreground">
-                        for unit 
+                        per unit
                       </span>
                     </div>
-                    <div className="text-sm text-muted-foreground">
-                      ₹{(finalPayableAmount / breakdown.quantity).toFixed(2)} per unit (final)
-                    </div>
+                    
+                    {/* Discount Information */}
+                    {breakdown.applicable_discount_percentage > 0 && (
+                      <div className="mt-1">
+                        <div className="text-sm text-muted-foreground">
+                          <span className={hasCatDiscount ? 'text-blue-600 font-medium' : 'text-purple-600 font-medium'}>
+                            {hasCatDiscount ? 'Category' : 'Retailer'} Discount: {breakdown.applicable_discount_percentage}%
+                          </span>
+                          <span className="ml-2 text-green-600">
+                            -₹{breakdown.discount_amount.toLocaleString()} per unit
+                          </span>
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-1">
+                          {hasCatDiscount ? 'Category discount has priority' : 'Retailer discount applied'}
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* Final Amount */}
@@ -618,6 +849,7 @@ const Cart = () => {
                           </SelectValue>
                         </SelectTrigger>
                         <SelectContent>
+                          <SelectItem value="0">No Credit Period</SelectItem>
                           {creditPeriods.map((period) => (
                             <SelectItem 
                               key={period.days} 
@@ -649,6 +881,11 @@ const Cart = () => {
           </div>
 
           <div className="space-y-3">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Subtotal ({cart.length} items)</span>
+              <span>₹{orderTotals.subtotal.toLocaleString()}</span>
+            </div>
+
             {orderTotals.totalCreditCharges > 0 && (
               <div className="flex justify-between">
                 <div className="flex items-center gap-2">
@@ -659,13 +896,23 @@ const Cart = () => {
               </div>
             )}
 
-            {orderTotals.totalDiscount > 0 && (
+            {orderTotals.totalCategoryDiscountsValue > 0 && (
               <div className="flex justify-between">
                 <div className="flex items-center gap-2">
-                  <Tag className="h-4 w-4 text-green-600" />
-                  <span className="text-green-600">Your Discount ({userDiscountPercentage}%)</span>
+                  <TagIcon className="h-4 w-4 text-blue-600" />
+                  <span className="text-blue-600">Category Discounts</span>
                 </div>
-                <span className="font-semibold text-green-600">-₹{orderTotals.totalDiscount.toLocaleString()}</span>
+                <span className="font-semibold text-blue-600">-₹{orderTotals.totalCategoryDiscountsValue.toLocaleString()}</span>
+              </div>
+            )}
+
+            {orderTotals.totalRetailerDiscountsValue > 0 && (
+              <div className="flex justify-between">
+                <div className="flex items-center gap-2">
+                  <User className="h-4 w-4 text-purple-600" />
+                  <span className="text-purple-600">Retailer Discount ({userDiscountPercentage}%)</span>
+                </div>
+                <span className="font-semibold text-purple-600">-₹{orderTotals.totalRetailerDiscountsValue.toLocaleString()}</span>
               </div>
             )}
 
@@ -693,7 +940,15 @@ const Cart = () => {
             {orderTotals.totalDiscount > 0 && (
               <div className="text-center pt-2">
                 <p className="text-sm text-green-600">
-                  🎉 You saved ₹{orderTotals.totalDiscount.toLocaleString()} with your {userDiscountPercentage}% discount!
+                  🎉 Total Savings: ₹{orderTotals.totalDiscount.toLocaleString()}
+                  {orderTotals.totalCategoryDiscountsValue > 0 && orderTotals.totalRetailerDiscountsValue > 0 && (
+                    <span>
+                      {' '}(Category: ₹{orderTotals.totalCategoryDiscountsValue.toLocaleString()}, Retailer: ₹{orderTotals.totalRetailerDiscountsValue.toLocaleString()})
+                    </span>
+                  )}
+                  {orderTotals.totalCategoryDiscountsValue > 0 && orderTotals.totalRetailerDiscountsValue === 0 && (
+                    <span> (Category discounts have priority)</span>
+                  )}
                 </p>
               </div>
             )}
