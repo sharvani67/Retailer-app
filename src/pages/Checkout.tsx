@@ -33,7 +33,8 @@ const Checkout = () => {
     totalSgst: 0,
     totalCgst: 0,
     finalTotal: 0,
-    userDiscount: 0
+    userDiscount: 0,
+    totalCustomerSalePriceValue: 0 // Make sure this is included
   };
   
   const isEditMode = checkoutData?.isEditMode || false;
@@ -136,7 +137,7 @@ const Checkout = () => {
         order_number: orderNumber,
         customer_id: parseInt(user.id),
         customer_name: userDetails?.name || address.name,
-        order_total: orderTotals.totalCustomerSalePrice, // customer_sale_price total
+        order_total: orderTotals.totalCustomerSalePriceValue, // customer_sale_price total
         discount_amount: orderTotals.totalDiscount,
         taxable_amount: orderTotals.totalTaxableAmount,
         tax_amount: orderTotals.totalTax,
@@ -163,6 +164,14 @@ const Checkout = () => {
       const orderItems = cartItems.map((item: any) => {
         const breakdown = item.breakdown;
         
+        // Determine discount type for database
+        let discount_type = 'none';
+        if (breakdown.perUnit.discount_type === 'category') {
+          discount_type = 'category';
+        } else if (breakdown.perUnit.discount_type === 'retailer') {
+          discount_type = 'retailer';
+        }
+        
         return {
           product_id: parseInt(item.product.id),
           item_name: item.product.name,
@@ -172,9 +181,12 @@ const Checkout = () => {
           credit_charge: breakdown.perUnit.credit_charge,
           credit_period: breakdown.perUnit.credit_period,
           credit_percentage: breakdown.perUnit.credit_percentage,
-          customer_sale_price: breakdown.perUnit.customer_sale_price,
-          discount_percentage: breakdown.perUnit.discount_percentage,
+          customer_sale_price: breakdown.perUnit.customer_sale_price, // Store this in DB
+          discount_percentage: breakdown.perUnit.applicable_discount_percentage, // Store applied discount percentage
           discount_amount: breakdown.perUnit.discount_amount,
+          discount_type: discount_type, // Store whether it's category or retailer discount
+          category_discount_percentage: breakdown.perUnit.category_discount_percentage,
+          retailer_discount_percentage: breakdown.perUnit.retailer_discount_percentage,
           item_total: breakdown.perUnit.item_total,
           taxable_amount: breakdown.perUnit.taxable_amount,
           tax_percentage: breakdown.perUnit.tax_percentage,
@@ -186,7 +198,8 @@ const Checkout = () => {
           final_amount: breakdown.perUnit.final_amount,
           quantity: item.quantity,
           total_amount: breakdown.perUnit.total_amount,
-          discount_applied_scheme: breakdown.perUnit.discount_percentage > 0 ? 'user_discount' : 'none'
+          gst_type: breakdown.perUnit.isInclusiveGST ? 'inclusive' : 'exclusive',
+          price_multiplier: item.priceMultiplier || 1
         };
       });
 
@@ -355,12 +368,18 @@ const Checkout = () => {
               </div>
             )}
 
+            {/* Customer Sale Price Total */}
+            <div className="flex justify-between text-muted-foreground">
+              <span>Customer Sale Price Total</span>
+              <span>₹{orderTotals.totalCustomerSalePriceValue?.toLocaleString() || orderTotals.finalTotal?.toLocaleString()}</span>
+            </div>
+
             {/* Discount */}
             {orderTotals.totalDiscount > 0 && (
               <div className="flex justify-between text-green-600">
                 <div className="flex items-center gap-2">
                   <Tag className="h-4 w-4" />
-                  <span>Your Discount ({orderTotals.userDiscount}%)</span>
+                  <span>Your Discount</span>
                 </div>
                 <span className="font-semibold">-₹{orderTotals.totalDiscount.toLocaleString()}</span>
               </div>
@@ -413,7 +432,7 @@ const Checkout = () => {
             {/* Savings Message */}
             {orderTotals.totalDiscount > 0 && (
               <div className="text-xs text-muted-foreground text-center pt-2 bg-green-50 rounded-lg p-2">
-                🎉 You saved ₹{orderTotals.totalDiscount.toLocaleString()} with your {orderTotals.userDiscount}% discount!
+                🎉 You saved ₹{orderTotals.totalDiscount.toLocaleString()} with your discount!
               </div>
             )}
           </div>

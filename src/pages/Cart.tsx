@@ -227,6 +227,10 @@ const Cart = () => {
     // Calculate final amount per unit (including tax if exclusive)
     const finalAmountPerUnit = isInclusiveGST ? itemTotalPerUnit : itemTotalPerUnit + taxAmountPerUnit;
 
+    // Calculate customer sale price per unit (price after discount but before tax for exclusive GST)
+    // This is the price the customer actually pays per unit (excluding GST if exclusive)
+    const customerSalePricePerUnit = priceAfterDiscount;
+
     // Calculate totals for the quantity
     const totalMRP = mrp * quantity;
     const totalSalePrice = salePrice * quantity;
@@ -238,6 +242,7 @@ const Cart = () => {
     const totalTaxAmount = taxAmountPerUnit * quantity;
     const totalSgstAmount = sgstAmountPerUnit * quantity;
     const totalCgstAmount = cgstAmountPerUnit * quantity;
+    const totalCustomerSalePrice = customerSalePricePerUnit * quantity;
     const finalPayableAmount = finalAmountPerUnit * quantity;
 
     return {
@@ -251,8 +256,9 @@ const Cart = () => {
       discount_type: discountType,
       category_discount_percentage: categoryDiscountPercentage,
       retailer_discount_percentage: userDiscountPercentage,
-      applicable_discount_percentage: applicableDiscountPercentage,
+      applicable_discount_percentage: applicableDiscountPercentage, // This is what we need to pass
       discount_amount: discountAmountPerUnit,
+      customer_sale_price: customerSalePricePerUnit, // This is what we need to pass
       item_total: itemTotalPerUnit,
       taxable_amount: taxableAmountPerUnit,
       tax_percentage: gstRate,
@@ -280,6 +286,7 @@ const Cart = () => {
         totalTaxAmount,
         totalSgstAmount,
         totalCgstAmount,
+        totalCustomerSalePrice, // This is what we need to pass
         finalPayableAmount
       }
     };
@@ -307,8 +314,9 @@ const Cart = () => {
             discount_type: breakdown.discount_type,
             category_discount_percentage: breakdown.category_discount_percentage,
             retailer_discount_percentage: breakdown.retailer_discount_percentage,
-            applicable_discount_percentage: breakdown.applicable_discount_percentage,
+            applicable_discount_percentage: breakdown.applicable_discount_percentage, // Pass this
             discount_amount: breakdown.discount_amount,
+            customer_sale_price: breakdown.customer_sale_price, // Pass this
             item_total: breakdown.item_total,
             taxable_amount: breakdown.taxable_amount,
             tax_percentage: breakdown.tax_percentage,
@@ -331,6 +339,7 @@ const Cart = () => {
     // Calculate order totals with separate tracking for category vs retailer discounts
     let totalCategoryDiscounts = 0;
     let totalRetailerDiscounts = 0;
+    let totalCustomerSalePrice = 0; // Initialize total customer sale price
     
     const orderTotals = {
       subtotal: cart.reduce((sum, item) => {
@@ -366,6 +375,13 @@ const Cart = () => {
         return sum + breakdown.totals.totalDiscountAmount;
       }, 0),
       
+      totalCustomerSalePrice: cart.reduce((sum, item) => {
+        const breakdown = calculateItemBreakdown(item);
+        const customerSalePrice = breakdown.totals.totalCustomerSalePrice;
+        totalCustomerSalePrice += customerSalePrice;
+        return sum + customerSalePrice;
+      }, 0),
+      
       totalItemTotal: cart.reduce((sum, item) => {
         const breakdown = calculateItemBreakdown(item);
         return sum + breakdown.totals.totalItemTotal;
@@ -399,6 +415,7 @@ const Cart = () => {
       userDiscount: userDiscountPercentage,
       totalCategoryDiscountsValue: totalCategoryDiscounts,
       totalRetailerDiscountsValue: totalRetailerDiscounts,
+      totalCustomerSalePriceValue: totalCustomerSalePrice, // Pass this to checkout
       itemCount: cart.reduce((sum, item) => sum + (item.quantity || 1), 0)
     };
 
