@@ -4,6 +4,8 @@ export interface Product {
   description: string;
   price: number;
   unit: string;
+    mrp: number; 
+    edited_sale_price:number,
   images?: string[];
   image: string;
   category: string;        // category_id as string

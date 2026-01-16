@@ -9,7 +9,8 @@ import { useApp } from '@/contexts/AppContext';
 import { useNavigate } from 'react-router-dom';
 import { Category, Product } from '@/types';
 import { toast } from "sonner";
-import RetailerScore from './RetailerScore'; // ADD THIS IMPORT
+import RetailerScore from './RetailerScore';
+import { baseurl } from '@/Api/Baseurl';
 
 const Home = () => {
   const [selectedCategory, setSelectedCategory] = useState('all');
@@ -18,11 +19,13 @@ const Home = () => {
   const [productsList, setProductsList] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [productsLoading, setProductsLoading] = useState(true);
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
   const { cart, syncCartWithBackend, user } = useApp();
   const navigate = useNavigate();
 
-  // Get retailer ID from user context or use default
-  const retailerId = user?.id?.toString() || '43'; // Default to 43 for demo
+  // Get retailer ID from user context
+  const retailerId = user?.id?.toString() || '68';
 
   useEffect(() => {
     const loadData = async () => {
@@ -51,6 +54,130 @@ const Home = () => {
 
     loadData();
   }, []);
+
+  // ✅ Fetch notifications separately
+  useEffect(() => {
+    fetchNotifications();
+  }, [retailerId]);
+
+  // ✅ Fetch notifications function
+  const fetchNotifications = async () => {
+    try {
+      console.log(`🔍 Fetching notifications for retailer ID: ${retailerId}`);
+      const response = await fetch(
+        `${baseurl}/notifications/retailer-id/${retailerId}`
+      );
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      console.log('Notifications API response:', data);
+      
+      if (data.success) {
+        setNotifications(data.notifications || []);
+        setUnreadCount(data.notifications?.length || 0);
+        
+        // Log each notification for debugging
+        if (data.notifications && data.notifications.length > 0) {
+          console.log('📋 Notifications found:');
+          data.notifications.forEach((notif: any, index: number) => {
+            console.log(`${index + 1}. ID: ${notif.id}, Order: ${notif.order_number}, Read: ${notif.is_read}`);
+          });
+        }
+      } else {
+        console.log('No notifications found');
+        setNotifications([]);
+        setUnreadCount(0);
+      }
+    } catch (error) {
+      console.error('Error fetching notifications:', error);
+      setNotifications([]);
+      setUnreadCount(0);
+    }
+  };
+
+  // ✅ Handle Bell Icon Click
+  const handleBellClick = () => {
+    if (notifications.length === 0) {
+      toast.info("No new notifications found");
+      return;
+    }
+
+    // ✅ Get the latest notification
+    const latestNotification = notifications[0];
+    console.log('Latest notification clicked:', latestNotification);
+    
+let alertMessage = ``;
+    
+    // Split the message into lines for better formatting
+    const messageLines = latestNotification.message.split('\n');
+    messageLines.forEach(line => {
+      if (line.trim()) {
+        alertMessage += `${line}\n`;
+      }
+    });
+    
+    
+    // ✅ Show Windows Alert
+    const userConfirmed = window.confirm(alertMessage);
+    
+    if (userConfirmed && latestNotification.order_number) {
+      // ✅ Mark this notification as read using order_number
+      markNotificationAsRead(latestNotification.order_number);
+      
+      // ✅ Then navigate to cart with order number
+      setTimeout(() => {
+        navigate(`/cart/${latestNotification.order_number}`);
+      }, 100); 
+    }
+  };
+
+  // ✅ Mark notification as read by ORDER_NUMBER (not ID)
+  const markNotificationAsRead = async (orderNumber: string) => {
+    try {
+      console.log(`Marking notification for order ${orderNumber} as read...`);
+      
+      const response = await fetch(`${baseurl}/notifications/mark-read-by-order`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          order_number: orderNumber,
+          retailer_id: retailerId
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      console.log('Mark as read response:', data);
+      
+      if (data.success) {
+        // Update local state - remove notifications for this order
+        setNotifications(prev => prev.filter(n => n.order_number !== orderNumber));
+        
+        // Recalculate unread count
+        const updatedCount = notifications.filter(n => n.order_number !== orderNumber).length;
+        setUnreadCount(updatedCount);
+        
+        toast.success("Notification marked as read");
+        
+        // Refresh notifications to ensure sync
+        fetchNotifications();
+      }
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
+      toast.error("Failed to mark notification as read");
+    }
+  };
+
+  // ✅ Function to mark ALL notifications as read for this retailer
+
 
   useEffect(() => {
     if (user) {
@@ -104,13 +231,28 @@ const Home = () => {
                   )}
                 </motion.button>
 
-                {/* Bell Notification */}
+                {/* ✅ Bell Notification with Red Dot */}
                 <motion.button
                   whileTap={{ scale: 0.9 }}
-                  onClick={() => toast.info("No new notifications found")}
-                  className="p-2 hover:bg-muted rounded-full"
+                  onClick={handleBellClick}
+                  className="relative p-2 hover:bg-muted rounded-full"
                 >
                   <Bell className="h-6 w-6" />
+                  {unreadCount > 0 && (
+                    <>
+                      {/* Red Dot */}
+                      <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-semibold rounded-full h-5 w-5 flex items-center justify-center animate-pulse">
+                        {unreadCount}
+                      </span>
+                      
+                      {/* Optional: Show count badge */}
+                      {unreadCount > 1 && (
+                        <span className="absolute -top-3 -right-3 bg-red-500 text-white text-[10px] font-bold rounded-full h-4 w-4 flex items-center justify-center">
+                          {unreadCount}
+                        </span>
+                      )}
+                    </>
+                  )}
                 </motion.button>
 
               </div>
@@ -120,7 +262,7 @@ const Home = () => {
 
         <main className="max-w-md mx-auto">
 
-          {/* Retailer Score Component - ADDED HERE */}
+          {/* Retailer Score Component */}
           <RetailerScore 
             retailerId={retailerId} 
             retailerName={user?.name || 'Retailer'}
