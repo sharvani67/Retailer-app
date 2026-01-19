@@ -202,7 +202,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           body: JSON.stringify({
             customer_id: user.id,
             product_id: parseInt(item.product_id),
-            quantity: item.quantity,
+            qty: item.quantity,
             credit_period: item.credit_period || 0,
             credit_percentage: item.credit_percentage || 0
           })
