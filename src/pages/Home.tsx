@@ -246,11 +246,11 @@ let alertMessage = ``;
                       </span>
                       
                       {/* Optional: Show count badge */}
-                      {unreadCount > 1 && (
+                      {/* {unreadCount > 1 && (
                         <span className="absolute -top-3 -right-3 bg-red-500 text-white text-[10px] font-bold rounded-full h-4 w-4 flex items-center justify-center">
                           {unreadCount}
                         </span>
-                      )}
+                      )} */}
                     </>
                   )}
                 </motion.button>
