@@ -74,9 +74,9 @@ const handleAddToCart = async (e: React.MouseEvent) => {
           <span className="text-2xl font-bold text-primary">
             ₹{product.price.toFixed(2)}
           </span>
-          <span className="text-sm text-muted-foreground">
+          {/* <span className="text-sm text-muted-foreground">
             {product.unit}
-          </span>
+          </span> */}
         </div>
 
         <div className="flex gap-2">
