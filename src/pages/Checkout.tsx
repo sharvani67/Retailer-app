@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, MapPin, CreditCard, Tag, ChevronDown } from 'lucide-react';
+import { ArrowLeft, MapPin, CreditCard, Tag, ChevronDown, Zap, Gift } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -34,7 +34,8 @@ const Checkout = () => {
     totalCgst: 0,
     finalTotal: 0,
     userDiscount: 0,
-    totalCustomerSalePriceValue: 0 // Make sure this is included
+    totalCustomerSalePriceValue: 0,
+    totalFlashFreeItemsValue: 0
   };
   
   const isEditMode = checkoutData?.isEditMode || false;
@@ -100,7 +101,7 @@ const Checkout = () => {
       return;
     }
 
-    setIsPlacingOrder(true); // 🔄 start loading
+    setIsPlacingOrder(true);
 
     try {
       // Fetch staff information from accounts table
@@ -132,12 +133,12 @@ const Checkout = () => {
       // Generate order number for new orders
       const orderNumber = isEditMode ? editOrderNumber : `ORD${Date.now()}`;
       
-      // Create order data for backend according to new calculation flow
+      // Create order data for backend
       const orderData = {
         order_number: orderNumber,
         customer_id: parseInt(user.id),
         customer_name: userDetails?.name || address.name,
-        order_total: orderTotals.totalCustomerSalePriceValue, // customer_sale_price total
+        order_total: orderTotals.totalCustomerSalePriceValue,
         discount_amount: orderTotals.totalDiscount,
         taxable_amount: orderTotals.totalTaxableAmount,
         tax_amount: orderTotals.totalTax,
@@ -155,22 +156,28 @@ const Checkout = () => {
         staff_mobile: staffMobile,
         retailer_email: userDetails?.email,
         retailer_mobile: userDetails?.mobile_number,
+        flash_free_items: orderTotals.totalFlashFreeItemsValue || 0 // Add flash free items count
       };
 
       console.log('Order Data:', orderData);
-      console.log('Staff Details - Name:', assigned_staff, 'Incentive %:', staff_incentive);
+      console.log('Flash Free Items:', orderTotals.totalFlashFreeItemsValue);
 
-      // Prepare order items using the breakdown from Cart
+      // Prepare order items - USE total_quantity_for_backend FOR FLASH OFFERS
       const orderItems = cartItems.map((item: any) => {
         const breakdown = item.breakdown;
         
         // Determine discount type for database
         let discount_type = 'none';
-        if (breakdown.perUnit.discount_type === 'category') {
+        if (breakdown.perUnit.discount_type === 'flash') {
+          discount_type = 'flash';
+        } else if (breakdown.perUnit.discount_type === 'category') {
           discount_type = 'category';
         } else if (breakdown.perUnit.discount_type === 'retailer') {
           discount_type = 'retailer';
         }
+        
+        // Use total_quantity_for_backend for flash offers, otherwise use quantity
+        const quantityToSend = breakdown.perUnit.total_quantity_for_backend || item.quantity;
         
         return {
           product_id: parseInt(item.product.id),
@@ -181,10 +188,10 @@ const Checkout = () => {
           credit_charge: breakdown.perUnit.credit_charge,
           credit_period: breakdown.perUnit.credit_period,
           credit_percentage: breakdown.perUnit.credit_percentage,
-          customer_sale_price: breakdown.perUnit.customer_sale_price, // Store this in DB
-          discount_percentage: breakdown.perUnit.applicable_discount_percentage, // Store applied discount percentage
+          customer_sale_price: breakdown.perUnit.customer_sale_price,
+          discount_percentage: breakdown.perUnit.applicable_discount_percentage,
           discount_amount: breakdown.perUnit.discount_amount,
-          discount_type: discount_type, // Store whether it's category or retailer discount
+          discount_type: discount_type,
           category_discount_percentage: breakdown.perUnit.category_discount_percentage,
           retailer_discount_percentage: breakdown.perUnit.retailer_discount_percentage,
           item_total: breakdown.perUnit.item_total,
@@ -196,14 +203,19 @@ const Checkout = () => {
           cgst_percentage: breakdown.perUnit.cgst_percentage,
           cgst_amount: breakdown.perUnit.cgst_amount,
           final_amount: breakdown.perUnit.final_amount,
-          quantity: item.quantity,
+          quantity: quantityToSend, // Send total quantity (actual + free)
+          flash_free_quantity: breakdown.perUnit.flash_free_quantity || 0,
           total_amount: breakdown.perUnit.total_amount,
           gst_type: breakdown.perUnit.isInclusiveGST ? 'inclusive' : 'exclusive',
-          price_multiplier: item.priceMultiplier || 1
+          price_multiplier: item.priceMultiplier || 1,
+          flash_offer: breakdown.perUnit.flash_offer ? {
+            buy_quantity: breakdown.perUnit.flash_offer.buy_quantity,
+            get_quantity: breakdown.perUnit.flash_offer.get_quantity
+          } : null
         };
       });
 
-      console.log('Order Items:', orderItems);
+      console.log('Order Items with flash quantities:', orderItems);
 
       // Determine API endpoint based on mode
       const apiEndpoint = isEditMode 
@@ -220,7 +232,8 @@ const Checkout = () => {
         },
         body: JSON.stringify({
           order: orderData,
-          orderItems: orderItems
+          orderItems: orderItems,
+          has_flash_offers: orderTotals.totalFlashFreeItemsValue > 0
         })
       });
 
@@ -247,14 +260,15 @@ const Checkout = () => {
           orderMode,
           staffName: assigned_staff,
           staffIncentive: staff_incentive,
-          isEditMode: isEditMode
+          isEditMode: isEditMode,
+          flashFreeItems: orderTotals.totalFlashFreeItemsValue
         },
       });
 
     } catch (error: any) {
       console.error('Error placing order:', error);
       alert(`Failed to ${isEditMode ? 'update' : 'place'} order: ${error.message}`);
-      setIsPlacingOrder(false); // 🔓 re-enable button
+      setIsPlacingOrder(false);
     }
   };
 
@@ -339,6 +353,27 @@ const Checkout = () => {
           </div>
         </motion.div>
 
+        {/* Flash Offer Banner */}
+        {orderTotals.totalFlashFreeItemsValue > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-gradient-to-r from-yellow-500 via-orange-500 to-red-500 rounded-2xl p-4 text-white shadow-lg"
+          >
+            <div className="flex items-center gap-3">
+              <Zap className="h-5 w-5 animate-pulse" />
+              <div>
+                <p className="font-semibold">⚡ Flash Offers Applied!</p>
+                <p className="text-sm opacity-90">
+                  You're getting {orderTotals.totalFlashFreeItemsValue} free item(s) from flash offers
+                  <br />
+                  <span className="text-xs">Backend will calculate final price with free items</span>
+                </p>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
         {/* Order Summary */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -352,6 +387,11 @@ const Checkout = () => {
           <div className="mb-4">
             <p className="text-muted-foreground">
               {cartItems.length} item{cartItems.length !== 1 ? 's' : ''} in your order
+              {orderTotals.totalFlashFreeItemsValue > 0 && (
+                <span className="text-green-600 ml-2">
+                  (+{orderTotals.totalFlashFreeItemsValue} free from flash offers)
+                </span>
+              )}
             </p>
           </div>
 
@@ -385,6 +425,17 @@ const Checkout = () => {
               </div>
             )}
 
+            {/* Flash Free Items */}
+            {orderTotals.totalFlashFreeItemsValue > 0 && (
+              <div className="flex justify-between text-yellow-600">
+                <div className="flex items-center gap-2">
+                  <Gift className="h-4 w-4" />
+                  <span>Flash Free Items</span>
+                </div>
+                <span className="font-semibold">+{orderTotals.totalFlashFreeItemsValue} FREE</span>
+              </div>
+            )}
+
             {/* Taxable Amount */}
             {orderTotals.totalTax > 0 && (
               <div className="flex justify-between text-muted-foreground">
@@ -403,9 +454,15 @@ const Checkout = () => {
 
             {/* Final Total */}
             <div className="border-t border-border pt-3 flex justify-between text-xl font-bold">
-              <span>Final Total</span>
+              <span>Base Total</span>
               <span className="text-primary">₹{orderTotals.finalTotal.toLocaleString()}</span>
             </div>
+
+            {orderTotals.totalFlashFreeItemsValue > 0 && (
+              <div className="text-xs text-yellow-600 bg-yellow-50 p-2 rounded">
+                * Final amount will be calculated by backend including {orderTotals.totalFlashFreeItemsValue} free items
+              </div>
+            )}
 
             {/* Order Mode Display */}
             <div className="flex justify-between items-center pt-2">
@@ -468,6 +525,11 @@ const Checkout = () => {
               <>{isEditMode ? "Update Order" : "Place Order"} - ₹{orderTotals.finalTotal.toLocaleString()}</>
             )}
           </Button>
+          {orderTotals.totalFlashFreeItemsValue > 0 && (
+            <p className="text-xs text-center text-yellow-600 mt-2">
+              * Includes {orderTotals.totalFlashFreeItemsValue} free items from flash offers
+            </p>
+          )}
           <p className="text-xs text-center text-muted-foreground mt-2">
             By {isEditMode ? 'updating' : 'placing'} this order, you agree to our terms and conditions
           </p>

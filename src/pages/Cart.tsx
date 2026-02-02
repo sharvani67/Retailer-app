@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { ArrowLeft, Minus, Plus, Trash2, ShoppingBag, Tag, Receipt, CreditCard, Loader2, TagIcon, User } from 'lucide-react';
+import { ArrowLeft, Minus, Plus, Trash2, ShoppingBag, Tag, Receipt, CreditCard, Loader2, TagIcon, User, Zap, Gift } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import TabBar from '@/components/TabBar';
 import { useApp } from '@/contexts/AppContext';
@@ -12,6 +12,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useState, useEffect } from 'react';
+import { baseurl } from '@/Api/Baseurl';
 
 const Cart = () => {
   const { 
@@ -35,6 +36,10 @@ const Cart = () => {
   const [categoryDiscounts, setCategoryDiscounts] = useState<Record<string, number>>({});
   const [loadingCategories, setLoadingCategories] = useState(true);
   const [productCategoryMap, setProductCategoryMap] = useState<Record<string, number>>({});
+  // NEW: Flash sales state
+  const [flashSales, setFlashSales] = useState<any[]>([]);
+  const [loadingFlashSales, setLoadingFlashSales] = useState(true);
+  const [productFlashOffers, setProductFlashOffers] = useState<Record<string, any>>({});
 
   // Check if this is edit mode
   useEffect(() => {
@@ -48,13 +53,49 @@ const Cart = () => {
     }
   }, [orderNumber]);
 
-  // Fetch category discounts
+  // Fetch flash sales with priority 1
+  useEffect(() => {
+    const loadFlashSales = async () => {
+      try {
+        setLoadingFlashSales(true);
+        const response = await fetch(`${baseurl}/flashoffer`);
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const result = await response.json();
+        
+        if (result.success && Array.isArray(result.data)) {
+          setFlashSales(result.data);
+          
+          // Create a map of product_id to flash offer
+          const flashOffersMap: Record<string, any> = {};
+          result.data.forEach((offer: any) => {
+            if (offer.product_id) {
+              flashOffersMap[offer.product_id] = offer;
+            }
+          });
+          
+          setProductFlashOffers(flashOffersMap);
+          console.log('Flash offers loaded:', Object.keys(flashOffersMap).length, 'offers');
+        }
+      } catch (error) {
+        console.error('Error fetching flash sales:', error);
+      } finally {
+        setLoadingFlashSales(false);
+      }
+    };
+
+    loadFlashSales();
+  }, []);
+
+  // Fetch category discounts (priority 2)
   useEffect(() => {
     const loadCategoryDiscounts = async () => {
       try {
         setLoadingCategories(true);
-        // Fetch categories with discounts from API
-        const response = await fetch('http://localhost:5000/categories');
+        const response = await fetch(`${baseurl}/categories`);
         
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
@@ -67,7 +108,6 @@ const Cart = () => {
         
         if (Array.isArray(categories)) {
           categories.forEach((category: any) => {
-            // Store category discount if it exists
             if (category.discount > 0) {
               discountMap[category.id] = parseFloat(category.discount) || 0;
             }
@@ -78,7 +118,7 @@ const Cart = () => {
         
         // Also fetch products to map product IDs to category IDs
         try {
-          const productsResponse = await fetch('http://localhost:5000/get-sales-products');
+          const productsResponse = await fetch(`${baseurl}/get-sales-products`);
           if (productsResponse.ok) {
             const products = await productsResponse.json();
             const productsArray = Array.isArray(products) ? products : (products.data || []);
@@ -119,24 +159,19 @@ const Cart = () => {
         if (isEditMode && editOrderNumber) {
           console.log('Loading order for editing:', editOrderNumber);
           
-          // Fetch order data
           const orderData = await fetchOrderForEdit(editOrderNumber);
           
           if (orderData?.items?.length > 0) {
             console.log('Found order items:', orderData.items);
             
-            // Clear cart and add order items
             await clearCart();
             await addOrderItemsToCart(orderData.items);
-            
-            // Force sync to ensure cart is updated
             await syncCartWithBackend();
           } else {
             console.warn('No items found in order');
             await syncCartWithBackend();
           }
         } else {
-          // Regular cart mode
           await syncCartWithBackend();
         }
       } catch (error) {
@@ -149,14 +184,26 @@ const Cart = () => {
     initializeCart();
   }, [user, isEditMode, editOrderNumber]);
 
-  // Get user discount percentage (retailer discount)
+  // Get user discount percentage (retailer discount - priority 3)
   const userDiscountPercentage = user?.discount ? parseFloat(user.discount) : 0;
+
+  // Get flash offer for a product
+  const getProductFlashOffer = (product: any) => {
+    if (!product || !product.id) return null;
+    
+    const flashOffer = productFlashOffers[product.id];
+    
+    if (flashOffer) {
+      console.log(`Flash offer found for product ${product.id}: Buy ${flashOffer.buy_quantity} Get ${flashOffer.get_quantity}`);
+    }
+    
+    return flashOffer || null;
+  };
 
   // Get category discount for a product
   const getProductCategoryDiscount = (product: any) => {
     if (!product || !product.id) return 0;
     
-    // Try to get category ID from product
     const categoryId = product.category_id || productCategoryMap[product.id];
     
     if (categoryId && categoryDiscounts[categoryId]) {
@@ -166,32 +213,94 @@ const Cart = () => {
     return 0;
   };
 
+  // Check if product has flash offer
+  const hasFlashOffer = (product: any) => {
+    return getProductFlashOffer(product) !== null;
+  };
+
   // Check if product has category discount
   const hasCategoryDiscount = (product: any) => {
     return getProductCategoryDiscount(product) > 0;
   };
 
-  // Calculate item price breakdown with priority: Category discount > Retailer discount
-  const calculateItemBreakdown = (item: any) => {
-    const mrp = item.product.mrp || 0;
-    const salePrice = item.product.price || 0;
-    const editedSalePrice = item.product.edited_sale_price || salePrice;
-    const gstRate = item.product.gst_rate || 0;
-    const isInclusiveGST = item.product.inclusive_gst === "Inclusive";
-    const quantity = item.quantity || 1;
-    const creditPercentage = item.creditPercentage || 0;
-
-    // Get category discount for this product
-    const categoryDiscountPercentage = getProductCategoryDiscount(item.product);
+  // Calculate free quantity from flash offer (Buy X Get Y) - SIMPLIFIED
+  const calculateFreeQuantity = (cartItem: any, flashOffer: any) => {
+    if (!flashOffer || !flashOffer.buy_quantity || !flashOffer.get_quantity) {
+      return 0;
+    }
     
-    // Determine which discount to apply: Category discount takes priority over retailer discount
-    const applicableDiscountPercentage = categoryDiscountPercentage > 0 ? categoryDiscountPercentage : userDiscountPercentage;
-    const discountType = categoryDiscountPercentage > 0 ? 'category' : (userDiscountPercentage > 0 ? 'retailer' : 'none');
+    const buyQuantity = parseInt(flashOffer.buy_quantity) || 0;
+    const getQuantity = parseInt(flashOffer.get_quantity) || 0;
+    const cartQuantity = parseInt(cartItem.quantity) || 1;
+    
+    if (buyQuantity <= 0 || cartQuantity < buyQuantity) {
+      return 0;
+    }
+    
+    // Calculate how many complete "buy" sets
+    const completeSets = Math.floor(cartQuantity / buyQuantity);
+    
+    // Free quantity = complete sets * get_quantity
+    const freeQty = completeSets * getQuantity;
+    
+    return freeQty;
+  };
+
+  // Calculate total quantity to send to backend (actual + free)
+  const calculateTotalQuantityForBackend = (cartItem: any) => {
+    const flashOffer = getProductFlashOffer(cartItem.product);
+    const hasFlash = flashOffer !== null;
+    
+    if (hasFlash) {
+      const freeQty = calculateFreeQuantity(cartItem, flashOffer);
+      const totalQty = cartItem.quantity + freeQty;
+      console.log(`Product ${cartItem.product.id}: Cart Qty=${cartItem.quantity}, Free=${freeQty}, Total for backend=${totalQty}`);
+      return totalQty;
+    }
+    
+    return cartItem.quantity;
+  };
+
+  // Calculate item price breakdown with priority: Flash > Category > Retailer
+  const calculateItemBreakdown = (item: any) => {
+    const mrp = parseFloat(item.product.mrp) || 0;
+    const salePrice = parseFloat(item.product.price) || 0;
+    const editedSalePrice = parseFloat(item.product.edited_sale_price) || salePrice;
+    const gstRate = parseFloat(item.product.gst_rate) || 0;
+    const isInclusiveGST = item.product.inclusive_gst === "Inclusive";
+    const quantity = parseInt(item.quantity) || 1;
+    const creditPercentage = parseFloat(item.creditPercentage) || 0;
+
+    // Check for flash offer (priority 1)
+    const flashOffer = getProductFlashOffer(item.product);
+    const hasFlash = flashOffer !== null;
+    const flashFreeQuantity = hasFlash ? calculateFreeQuantity(item, flashOffer) : 0;
+    const totalQuantityForBackend = hasFlash ? (quantity + flashFreeQuantity) : quantity;
+    
+    // Check for category discount (priority 2)
+    const categoryDiscountPercentage = getProductCategoryDiscount(item.product);
+    const hasCategory = categoryDiscountPercentage > 0 && !hasFlash;
+    
+    // Determine which discount/offer to apply
+    let applicableDiscountPercentage = 0;
+    let discountType = 'none';
+    
+    if (hasFlash) {
+      discountType = 'flash';
+    } else if (hasCategory) {
+      discountType = 'category';
+      applicableDiscountPercentage = categoryDiscountPercentage;
+    } else if (userDiscountPercentage > 0) {
+      discountType = 'retailer';
+      applicableDiscountPercentage = userDiscountPercentage;
+    }
 
     console.log(`Product ${item.product.id} (${item.product.name}):`);
+    console.log(`- Flash offer: ${hasFlash ? `Buy ${flashOffer?.buy_quantity} Get ${flashOffer?.get_quantity}` : 'No'}`);
     console.log(`- Category discount = ${categoryDiscountPercentage}%`);
     console.log(`- Retailer discount = ${userDiscountPercentage}%`);
-    console.log(`- Applied discount = ${applicableDiscountPercentage}% (${discountType})`);
+    console.log(`- Applied type = ${discountType}`);
+    console.log(`- Quantity = ${quantity}, Free = ${flashFreeQuantity}, Total for backend = ${totalQuantityForBackend}`);
 
     // Step 1: Calculate credit charge (percentage of edited_sale_price)
     const creditChargePerUnit = (editedSalePrice * creditPercentage) / 100;
@@ -199,22 +308,22 @@ const Cart = () => {
     // Step 2: Calculate price after credit charge
     const priceAfterCredit = editedSalePrice + creditChargePerUnit;
 
-    // Step 3: Apply applicable discount (either category or retailer, but not both)
+    // Step 3: Apply discount (for non-flash offers)
     const discountAmountPerUnit = applicableDiscountPercentage > 0 ? (priceAfterCredit * applicableDiscountPercentage) / 100 : 0;
     const priceAfterDiscount = priceAfterCredit - discountAmountPerUnit;
 
-    // Step 4: Calculate item total (before tax)
-    const itemTotalPerUnit = priceAfterDiscount;
+    // Final price per unit (for flash offers, backend will handle pricing)
+    const finalPricePerUnit = priceAfterDiscount;
 
-    // Step 5: Calculate tax (GST handling based on inclusive/exclusive)
+    // Step 4: Calculate tax (GST handling based on inclusive/exclusive)
     let taxableAmountPerUnit = 0;
     let taxAmountPerUnit = 0;
 
     if (isInclusiveGST) {
-      taxableAmountPerUnit = itemTotalPerUnit / (1 + (gstRate / 100));
-      taxAmountPerUnit = itemTotalPerUnit - taxableAmountPerUnit;
+      taxableAmountPerUnit = finalPricePerUnit / (1 + (gstRate / 100));
+      taxAmountPerUnit = finalPricePerUnit - taxableAmountPerUnit;
     } else {
-      taxableAmountPerUnit = itemTotalPerUnit;
+      taxableAmountPerUnit = finalPricePerUnit;
       taxAmountPerUnit = (taxableAmountPerUnit * gstRate) / 100;
     }
 
@@ -225,19 +334,17 @@ const Cart = () => {
     const cgstAmountPerUnit = taxAmountPerUnit / 2;
 
     // Calculate final amount per unit (including tax if exclusive)
-    const finalAmountPerUnit = isInclusiveGST ? itemTotalPerUnit : itemTotalPerUnit + taxAmountPerUnit;
+    const finalAmountPerUnit = isInclusiveGST ? finalPricePerUnit : finalPricePerUnit + taxAmountPerUnit;
 
-    // Calculate customer sale price per unit (price after discount but before tax for exclusive GST)
-    // This is the price the customer actually pays per unit (excluding GST if exclusive)
-    const customerSalePricePerUnit = priceAfterDiscount;
+    const customerSalePricePerUnit = finalPricePerUnit;
 
-    // Calculate totals for the quantity
+    // Calculate totals (use quantity for calculations, backend will handle flash pricing)
     const totalMRP = mrp * quantity;
     const totalSalePrice = salePrice * quantity;
     const totalEditedSalePrice = editedSalePrice * quantity;
     const totalCreditCharge = creditChargePerUnit * quantity;
     const totalDiscountAmount = discountAmountPerUnit * quantity;
-    const totalItemTotal = itemTotalPerUnit * quantity;
+    const totalItemTotal = finalPricePerUnit * quantity;
     const totalTaxableAmount = taxableAmountPerUnit * quantity;
     const totalTaxAmount = taxAmountPerUnit * quantity;
     const totalSgstAmount = sgstAmountPerUnit * quantity;
@@ -254,12 +361,15 @@ const Cart = () => {
       credit_period: item.creditPeriod,
       credit_percentage: creditPercentage,
       discount_type: discountType,
+      flash_offer: flashOffer,
+      flash_free_quantity: flashFreeQuantity,
+      total_quantity_for_backend: totalQuantityForBackend, // Send this to backend
       category_discount_percentage: categoryDiscountPercentage,
       retailer_discount_percentage: userDiscountPercentage,
-      applicable_discount_percentage: applicableDiscountPercentage, // This is what we need to pass
+      applicable_discount_percentage: applicableDiscountPercentage,
       discount_amount: discountAmountPerUnit,
-      customer_sale_price: customerSalePricePerUnit, // This is what we need to pass
-      item_total: itemTotalPerUnit,
+      customer_sale_price: customerSalePricePerUnit,
+      item_total: finalPricePerUnit,
       taxable_amount: taxableAmountPerUnit,
       tax_percentage: gstRate,
       tax_amount: taxAmountPerUnit,
@@ -270,9 +380,11 @@ const Cart = () => {
       final_amount: finalAmountPerUnit,
       total_amount: finalAmountPerUnit * quantity,
       
-      // For display purposes
+      // Quantity info
       isInclusiveGST,
       quantity,
+      free_quantity: flashFreeQuantity,
+      total_quantity: totalQuantityForBackend,
       
       // Totals for the entire quantity
       totals: {
@@ -286,8 +398,9 @@ const Cart = () => {
         totalTaxAmount,
         totalSgstAmount,
         totalCgstAmount,
-        totalCustomerSalePrice, // This is what we need to pass
-        finalPayableAmount
+        totalCustomerSalePrice,
+        finalPayableAmount,
+        totalFreeQuantity: flashFreeQuantity
       }
     };
   };
@@ -298,7 +411,8 @@ const Cart = () => {
       const breakdown = calculateItemBreakdown(item);
       return {
         product: item.product,
-        quantity: item.quantity,
+        quantity: item.quantity, // Original quantity from cart
+        total_quantity_for_backend: breakdown.total_quantity_for_backend, // Quantity to send to backend
         creditPeriod: item.creditPeriod,
         creditPercentage: item.creditPercentage,
         priceMultiplier: item.priceMultiplier,
@@ -312,11 +426,14 @@ const Cart = () => {
             credit_period: breakdown.credit_period,
             credit_percentage: breakdown.credit_percentage,
             discount_type: breakdown.discount_type,
+            flash_offer: breakdown.flash_offer,
+            flash_free_quantity: breakdown.flash_free_quantity,
+            total_quantity_for_backend: breakdown.total_quantity_for_backend,
             category_discount_percentage: breakdown.category_discount_percentage,
             retailer_discount_percentage: breakdown.retailer_discount_percentage,
-            applicable_discount_percentage: breakdown.applicable_discount_percentage, // Pass this
+            applicable_discount_percentage: breakdown.applicable_discount_percentage,
             discount_amount: breakdown.discount_amount,
-            customer_sale_price: breakdown.customer_sale_price, // Pass this
+            customer_sale_price: breakdown.customer_sale_price,
             item_total: breakdown.item_total,
             taxable_amount: breakdown.taxable_amount,
             tax_percentage: breakdown.tax_percentage,
@@ -331,15 +448,18 @@ const Cart = () => {
           },
           
           totals: breakdown.totals,
-          quantity: breakdown.quantity
+          quantity: breakdown.quantity,
+          free_quantity: breakdown.free_quantity,
+          total_quantity: breakdown.total_quantity_for_backend
         }
       };
     });
 
-    // Calculate order totals with separate tracking for category vs retailer discounts
+    // Calculate order totals
+    let totalFlashFreeItems = 0;
     let totalCategoryDiscounts = 0;
     let totalRetailerDiscounts = 0;
-    let totalCustomerSalePrice = 0; // Initialize total customer sale price
+    let totalCustomerSalePrice = 0;
     
     const orderTotals = {
       subtotal: cart.reduce((sum, item) => {
@@ -350,6 +470,12 @@ const Cart = () => {
       totalCreditCharges: cart.reduce((sum, item) => {
         const breakdown = calculateItemBreakdown(item);
         return sum + breakdown.totals.totalCreditCharge;
+      }, 0),
+      
+      totalFlashFreeItems: cart.reduce((sum, item) => {
+        const breakdown = calculateItemBreakdown(item);
+        totalFlashFreeItems += breakdown.totals.totalFreeQuantity;
+        return sum + breakdown.totals.totalFreeQuantity;
       }, 0),
       
       totalCategoryDiscounts: cart.reduce((sum, item) => {
@@ -413,10 +539,11 @@ const Cart = () => {
       }, 0),
       
       userDiscount: userDiscountPercentage,
+      totalFlashFreeItemsValue: totalFlashFreeItems,
       totalCategoryDiscountsValue: totalCategoryDiscounts,
       totalRetailerDiscountsValue: totalRetailerDiscounts,
-      totalCustomerSalePriceValue: totalCustomerSalePrice, // Pass this to checkout
-      itemCount: cart.reduce((sum, item) => sum + (item.quantity || 1), 0)
+      totalCustomerSalePriceValue: totalCustomerSalePrice,
+      itemCount: cart.reduce((sum, item) => sum + (parseInt(item.quantity) || 1), 0)
     };
 
     return { orderItems, orderTotals };
@@ -447,6 +574,7 @@ const Cart = () => {
   // Handle quantity update
   const handleQuantityUpdate = async (productId: string, newQuantity: number) => {
     try {
+      if (newQuantity < 1) newQuantity = 1;
       await updateCartQuantity(productId, newQuantity);
       await syncCartWithBackend();
     } catch (error) {
@@ -466,9 +594,17 @@ const Cart = () => {
 
   // Get discount badge for a product
   const getDiscountBadge = (product: any) => {
+    const flashOffer = getProductFlashOffer(product);
     const categoryDiscount = getProductCategoryDiscount(product);
     
-    if (categoryDiscount > 0) {
+    if (flashOffer) {
+      return (
+        <span className="inline-flex items-center gap-1 bg-gradient-to-r from-yellow-500 to-orange-500 text-white text-xs px-2 py-1 rounded-full">
+          <Zap className="h-3 w-3" />
+          FLASH: Buy {flashOffer.buy_quantity} Get {flashOffer.get_quantity} FREE
+        </span>
+      );
+    } else if (categoryDiscount > 0) {
       return (
         <span className="inline-flex items-center gap-1 bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full">
           <TagIcon className="h-3 w-3" />
@@ -484,18 +620,6 @@ const Cart = () => {
       );
     }
     return null;
-  };
-
-  // Get discount type display
-  const getDiscountTypeDisplay = (product: any) => {
-    const categoryDiscount = getProductCategoryDiscount(product);
-    
-    if (categoryDiscount > 0) {
-      return `Category Discount (${categoryDiscount}%)`;
-    } else if (userDiscountPercentage > 0) {
-      return `Retailer Discount (${userDiscountPercentage}%)`;
-    }
-    return "No Discount";
   };
 
   // Checkout/Update handler
@@ -528,7 +652,7 @@ const Cart = () => {
     }
   };
 
-  if (loading || loadingCategories) {
+  if (loading || loadingCategories || loadingFlashSales) {
     return (
       <div className="min-h-screen bg-background pb-20">
         <header className="sticky top-0 z-40 bg-background/95 backdrop-blur-lg border-b border-border">
@@ -616,9 +740,17 @@ const Cart = () => {
   // Get current order summary for display
   const { orderItems, orderTotals } = calculateOrderSummary();
 
-  // Calculate how many items have category discounts
+  // Calculate how many items have each type of discount/offer
+  const itemsWithFlashOffer = cart.filter(item => 
+    hasFlashOffer(item.product)
+  ).length;
+  
   const itemsWithCategoryDiscount = cart.filter(item => 
-    hasCategoryDiscount(item.product)
+    hasCategoryDiscount(item.product) && !hasFlashOffer(item.product)
+  ).length;
+  
+  const itemsWithRetailerDiscount = cart.filter(item => 
+    !hasFlashOffer(item.product) && !hasCategoryDiscount(item.product) && userDiscountPercentage > 0
   ).length;
 
   return (
@@ -659,7 +791,30 @@ const Cart = () => {
           </motion.div>
         )}
 
-        {/* DISCOUNT BANNERS */}
+        {/* FLASH OFFER BANNER */}
+        {orderTotals.totalFlashFreeItemsValue > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-gradient-to-r from-yellow-500 via-orange-500 to-red-500 rounded-2xl p-4 text-white shadow-lg"
+          >
+            <div className="flex items-center gap-3">
+              <Zap className="h-5 w-5 animate-pulse" />
+              <div>
+                <p className="font-semibold text-lg">⚡ FLASH SALE ACTIVE! ⚡</p>
+                <p className="text-sm opacity-90">
+                  {itemsWithFlashOffer} item(s) with flash offers
+                  <br />
+                  <span className="font-bold">Free Items: {orderTotals.totalFlashFreeItemsValue}</span>
+                  <br />
+                  <span className="text-xs opacity-75">(Highest Priority - Buy X Get Y Free)</span>
+                </p>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* CATEGORY DISCOUNT BANNER */}
         {orderTotals.totalCategoryDiscountsValue > 0 && (
           <motion.div
             initial={{ opacity: 0, y: -10 }}
@@ -674,13 +829,14 @@ const Cart = () => {
                   {itemsWithCategoryDiscount} item(s) with category discounts
                   <br />
                   <span className="font-bold">Saved: ₹{orderTotals.totalCategoryDiscountsValue.toLocaleString()}</span>
-                  <span className="ml-2 text-xs opacity-75">(Priority over retailer discount)</span>
+                  <span className="ml-2 text-xs opacity-75">(Priority 2 - After flash offers)</span>
                 </p>
               </div>
             </div>
           </motion.div>
         )}
 
+        {/* RETAILER DISCOUNT BANNER */}
         {orderTotals.totalRetailerDiscountsValue > 0 && (
           <motion.div
             initial={{ opacity: 0, y: -10 }}
@@ -692,28 +848,10 @@ const Cart = () => {
               <div>
                 <p className="font-semibold">Retailer Discount Applied!</p>
                 <p className="text-sm opacity-90">
-                  Applied to {cart.length - itemsWithCategoryDiscount} item(s) without category discounts
+                  Applied to {itemsWithRetailerDiscount} item(s)
                   <br />
                   <span className="font-bold">Saved: ₹{orderTotals.totalRetailerDiscountsValue.toLocaleString()}</span>
-                </p>
-              </div>
-            </div>
-          </motion.div>
-        )}
-
-        {userDiscountPercentage > 0 && orderTotals.totalCategoryDiscountsValue === 0 && orderTotals.totalRetailerDiscountsValue === 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-gradient-to-r from-green-500 to-emerald-600 rounded-2xl p-4 text-white shadow-lg"
-          >
-            <div className="flex items-center gap-3">
-              <Tag className="h-5 w-5" />
-              <div>
-                <p className="font-semibold">Retailer Discount Available!</p>
-                <p className="text-sm opacity-90">
-                  Your {userDiscountPercentage}% retailer discount will be applied at checkout
-                  (Category discounts have priority)
+                  <span className="ml-2 text-xs opacity-75">(Priority 3 - After flash & category)</span>
                 </p>
               </div>
             </div>
@@ -724,7 +862,8 @@ const Cart = () => {
         {cart.map((item, index) => {
           const breakdown = calculateItemBreakdown(item);
           const finalPayableAmount = breakdown.totals.finalPayableAmount;
-          const hasCatDiscount = hasCategoryDiscount(item.product);
+          const hasFlash = breakdown.discount_type === 'flash';
+          const flashOffer = breakdown.flash_offer;
 
           return (
             <motion.div
@@ -796,19 +935,49 @@ const Cart = () => {
                       </span>
                     </div>
                     
-                    {/* Discount Information */}
-                    {breakdown.applicable_discount_percentage > 0 && (
+                    {/* Flash Offer Info */}
+                    {hasFlash && flashOffer && (
+                      <div className="mt-2 p-2 bg-gradient-to-r from-yellow-50 to-orange-50 border border-yellow-200 rounded-lg">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Zap className="h-4 w-4 text-yellow-600 animate-pulse" />
+                          <span className="text-sm font-bold text-yellow-700">
+                            ⚡ FLASH OFFER: Buy {flashOffer.buy_quantity} Get {flashOffer.get_quantity} FREE
+                          </span>
+                        </div>
+                        <div className="text-sm text-gray-700 space-y-1">
+                          <div className="flex justify-between">
+                            <span className="font-medium">Selected Quantity:</span>
+                            <span className="font-bold">{breakdown.quantity}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="font-medium">You Get FREE:</span>
+                            <span className="font-bold text-green-600 flex items-center gap-1">
+                              <Gift className="h-3 w-3" /> +{breakdown.free_quantity} units
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="font-medium">Total for backend:</span>
+                            <span className="font-bold text-blue-600">
+                              {breakdown.total_quantity} units
+                            </span>
+                          </div>
+                          <div className="text-xs text-yellow-500 mt-1">
+                            * Backend will calculate final price for {breakdown.total_quantity} units
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Non-Flash Discount Information */}
+                    {!hasFlash && breakdown.applicable_discount_percentage > 0 && (
                       <div className="mt-1">
                         <div className="text-sm text-muted-foreground">
-                          <span className={hasCatDiscount ? 'text-blue-600 font-medium' : 'text-purple-600 font-medium'}>
-                            {hasCatDiscount ? 'Category' : 'Retailer'} Discount: {breakdown.applicable_discount_percentage}%
+                          <span className={breakdown.discount_type === 'category' ? 'text-blue-600 font-medium' : 'text-purple-600 font-medium'}>
+                            {breakdown.discount_type === 'category' ? 'Category' : 'Retailer'} Discount: {breakdown.applicable_discount_percentage}%
                           </span>
                           <span className="ml-2 text-green-600">
                             -₹{breakdown.discount_amount.toLocaleString()} per unit
                           </span>
-                        </div>
-                        <div className="text-xs text-muted-foreground mt-1">
-                          {hasCatDiscount ? 'Category discount has priority' : 'Retailer discount applied'}
                         </div>
                       </div>
                     )}
@@ -817,40 +986,68 @@ const Cart = () => {
                   {/* Final Amount */}
                   <div className="text-sm mb-4">
                     <div className="flex justify-between pt-1">
-                      <span className="font-semibold">Final Amount:</span>
+                      <span className="font-semibold">Base Amount:</span>
                       <span className="font-bold text-primary">
                         ₹{finalPayableAmount.toLocaleString()} 
+                        {hasFlash && breakdown.free_quantity > 0 && (
+                          <span className="ml-1 text-xs text-green-600">
+                            (for {breakdown.quantity} units)
+                          </span>
+                        )}
                       </span>
                     </div>
+                    {hasFlash && (
+                      <div className="text-xs text-yellow-600 mt-1">
+                        * Final amount will be calculated by backend for {breakdown.total_quantity} total units
+                      </div>
+                    )}
                   </div>
 
                   {/* Quantity and Credit Controls */}
                   <div className="space-y-3">
                     {/* Quantity Controls */}
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2 bg-muted rounded-full p-1">
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          onClick={() => handleQuantityUpdate(item.product.id, item.quantity - 1)}
-                          className="rounded-full h-7 w-7"
-                          disabled={item.quantity <= 1}
-                        >
-                          <Minus className="h-3 w-3" />
-                        </Button>
+                      <div className="flex flex-col gap-2">
+                        <div className="flex items-center gap-2 bg-muted rounded-full p-1">
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => handleQuantityUpdate(item.product.id, item.quantity - 1)}
+                            className="rounded-full h-7 w-7"
+                            disabled={item.quantity <= 1}
+                          >
+                            <Minus className="h-3 w-3" />
+                          </Button>
 
-                        <span className="text-sm font-semibold w-8 text-center">
-                          {item.quantity}
-                        </span>
+                          <span className="text-sm font-semibold w-8 text-center">
+                            {item.quantity}
+                          </span>
 
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          onClick={() => handleQuantityUpdate(item.product.id, item.quantity + 1)}
-                          className="rounded-full h-7 w-7"
-                        >
-                          <Plus className="h-3 w-3" />
-                        </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => handleQuantityUpdate(item.product.id, item.quantity + 1)}
+                            className="rounded-full h-7 w-7"
+                          >
+                            <Plus className="h-3 w-3" />
+                          </Button>
+                        </div>
+                        
+                        {/* Flash offer quantity hint */}
+                        {hasFlash && flashOffer && (
+                          <div className="text-xs text-yellow-600">
+                            {item.quantity >= parseInt(flashOffer.buy_quantity) ? (
+                              <span className="flex items-center gap-1">
+                                <Zap className="h-3 w-3" />
+                                You qualify for {Math.floor(item.quantity / parseInt(flashOffer.buy_quantity))} free item(s)
+                              </span>
+                            ) : (
+                              <span>
+                                Add {parseInt(flashOffer.buy_quantity) - item.quantity} more to get {flashOffer.get_quantity} free
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -899,7 +1096,27 @@ const Cart = () => {
 
           <div className="space-y-3">
             <div className="flex justify-between">
-              <span className="text-muted-foreground">Subtotal ({cart.length} items)</span>
+              <span className="text-muted-foreground">Items in Cart</span>
+              <span>{orderTotals.itemCount} items</span>
+            </div>
+
+            {orderTotals.totalFlashFreeItemsValue > 0 && (
+              <>
+                <div className="flex justify-between">
+                  <div className="flex items-center gap-2">
+                    <Gift className="h-4 w-4 text-green-600" />
+                    <span className="text-green-600">Flash Free Items</span>
+                  </div>
+                  <span className="font-bold text-green-600">+{orderTotals.totalFlashFreeItemsValue} FREE</span>
+                </div>
+                <div className="text-xs text-yellow-600 bg-yellow-50 p-2 rounded">
+                  * Backend will calculate final price including free items
+                </div>
+              </>
+            )}
+
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Subtotal</span>
               <span>₹{orderTotals.subtotal.toLocaleString()}</span>
             </div>
 
@@ -949,22 +1166,29 @@ const Cart = () => {
 
             <div className="border-t border-border pt-3">
               <div className="flex justify-between text-xl font-bold">
-                <span>Final Total</span>
+                <span>Base Total</span>
                 <span className="text-primary">₹{orderTotals.finalTotal.toLocaleString()}</span>
               </div>
+              {orderTotals.totalFlashFreeItemsValue > 0 && (
+                <div className="text-xs text-yellow-600 mt-2">
+                  * Final total will be adjusted by backend for flash offers
+                </div>
+              )}
             </div>
 
-            {orderTotals.totalDiscount > 0 && (
+            {(orderTotals.totalCategoryDiscountsValue > 0 || orderTotals.totalRetailerDiscountsValue > 0) && (
               <div className="text-center pt-2">
                 <p className="text-sm text-green-600">
-                  🎉 Total Savings: ₹{orderTotals.totalDiscount.toLocaleString()}
-                  {orderTotals.totalCategoryDiscountsValue > 0 && orderTotals.totalRetailerDiscountsValue > 0 && (
+                  🎉 Discount Savings: ₹{orderTotals.totalDiscount.toLocaleString()}
+                  {orderTotals.totalCategoryDiscountsValue > 0 && (
                     <span>
-                      {' '}(Category: ₹{orderTotals.totalCategoryDiscountsValue.toLocaleString()}, Retailer: ₹{orderTotals.totalRetailerDiscountsValue.toLocaleString()})
+                      {' '}(Category: ₹{orderTotals.totalCategoryDiscountsValue.toLocaleString()})
                     </span>
                   )}
-                  {orderTotals.totalCategoryDiscountsValue > 0 && orderTotals.totalRetailerDiscountsValue === 0 && (
-                    <span> (Category discounts have priority)</span>
+                  {orderTotals.totalRetailerDiscountsValue > 0 && (
+                    <span>
+                      {' '}(Retailer: ₹{orderTotals.totalRetailerDiscountsValue.toLocaleString()})
+                    </span>
                   )}
                 </p>
               </div>
