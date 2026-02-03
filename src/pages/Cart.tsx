@@ -58,7 +58,7 @@ const Cart = () => {
     const loadFlashSales = async () => {
       try {
         setLoadingFlashSales(true);
-        const response = await fetch(`${baseurl}/flashoffer`);
+        const response = await fetch(`${baseurl}/flashofferretailer`);
         
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
@@ -69,7 +69,6 @@ const Cart = () => {
         if (result.success && Array.isArray(result.data)) {
           setFlashSales(result.data);
           
-          // Create a map of product_id to flash offer
           const flashOffersMap: Record<string, any> = {};
           result.data.forEach((offer: any) => {
             if (offer.product_id) {
@@ -213,9 +212,17 @@ const Cart = () => {
     return 0;
   };
 
-  // Check if product has flash offer
-  const hasFlashOffer = (product: any) => {
-    return getProductFlashOffer(product) !== null;
+  // FIXED: Check if qualifies for flash offer (ONLY exact buy_quantity)
+  const hasFlashOffer = (cartItem: any) => {
+    const flashOffer = getProductFlashOffer(cartItem.product);
+    if (!flashOffer) return false;
+    
+    const buyQuantity = parseInt(flashOffer.buy_quantity) || 0;
+    const cartQuantity = parseInt(cartItem.quantity) || 1;
+    
+    // Only return true if cart quantity is EXACTLY equal to buy_quantity
+    // For buy_quantity=2: quantity should be EXACTLY 2
+    return cartQuantity === buyQuantity;
   };
 
   // Check if product has category discount
@@ -223,7 +230,7 @@ const Cart = () => {
     return getProductCategoryDiscount(product) > 0;
   };
 
-  // Calculate free quantity from flash offer (Buy X Get Y) - SIMPLIFIED
+  // Calculate free quantity from flash offer (Buy X Get Y)
   const calculateFreeQuantity = (cartItem: any, flashOffer: any) => {
     if (!flashOffer || !flashOffer.buy_quantity || !flashOffer.get_quantity) {
       return 0;
@@ -233,35 +240,14 @@ const Cart = () => {
     const getQuantity = parseInt(flashOffer.get_quantity) || 0;
     const cartQuantity = parseInt(cartItem.quantity) || 1;
     
-    if (buyQuantity <= 0 || cartQuantity < buyQuantity) {
+    if (buyQuantity <= 0 || cartQuantity !== buyQuantity) {
       return 0;
     }
     
-    // Calculate how many complete "buy" sets
-    const completeSets = Math.floor(cartQuantity / buyQuantity);
-    
-    // Free quantity = complete sets * get_quantity
-    const freeQty = completeSets * getQuantity;
-    
-    return freeQty;
+    // Since quantity must equal buy_quantity, we just return get_quantity
+    return getQuantity;
   };
 
-  // Calculate total quantity to send to backend (actual + free)
-  const calculateTotalQuantityForBackend = (cartItem: any) => {
-    const flashOffer = getProductFlashOffer(cartItem.product);
-    const hasFlash = flashOffer !== null;
-    
-    if (hasFlash) {
-      const freeQty = calculateFreeQuantity(cartItem, flashOffer);
-      const totalQty = cartItem.quantity + freeQty;
-      console.log(`Product ${cartItem.product.id}: Cart Qty=${cartItem.quantity}, Free=${freeQty}, Total for backend=${totalQty}`);
-      return totalQty;
-    }
-    
-    return cartItem.quantity;
-  };
-
-  // Calculate item price breakdown with priority: Flash > Category > Retailer
   const calculateItemBreakdown = (item: any) => {
     const mrp = parseFloat(item.product.mrp) || 0;
     const salePrice = parseFloat(item.product.price) || 0;
@@ -271,36 +257,42 @@ const Cart = () => {
     const quantity = parseInt(item.quantity) || 1;
     const creditPercentage = parseFloat(item.creditPercentage) || 0;
 
-    // Check for flash offer (priority 1)
     const flashOffer = getProductFlashOffer(item.product);
-    const hasFlash = flashOffer !== null;
+    // FIXED: Check if quantity is EXACTLY equal to buy_quantity
+    const qualifiesForFlash = flashOffer && quantity === (parseInt(flashOffer.buy_quantity) || 0);
+    const hasFlash = qualifiesForFlash; // Only true if quantity equals buy_quantity exactly
     const flashFreeQuantity = hasFlash ? calculateFreeQuantity(item, flashOffer) : 0;
     const totalQuantityForBackend = hasFlash ? (quantity + flashFreeQuantity) : quantity;
     
-    // Check for category discount (priority 2)
     const categoryDiscountPercentage = getProductCategoryDiscount(item.product);
     const hasCategory = categoryDiscountPercentage > 0 && !hasFlash;
-    
-    // Determine which discount/offer to apply
+
     let applicableDiscountPercentage = 0;
     let discountType = 'none';
-    
-    if (hasFlash) {
+    let flash_offer_value = 0;
+
+    if (hasFlash && flashOffer) {
       discountType = 'flash';
+
+      flash_offer_value = `Buy ${flashOffer.buy_quantity || 0} Get ${flashOffer.get_quantity || 0}`;
+      
     } else if (hasCategory) {
+      // Only apply category discount if NO qualifying flash offer
       discountType = 'category';
       applicableDiscountPercentage = categoryDiscountPercentage;
     } else if (userDiscountPercentage > 0) {
+      // Only apply retailer discount if NO flash or category
       discountType = 'retailer';
       applicableDiscountPercentage = userDiscountPercentage;
     }
 
     console.log(`Product ${item.product.id} (${item.product.name}):`);
     console.log(`- Flash offer: ${hasFlash ? `Buy ${flashOffer?.buy_quantity} Get ${flashOffer?.get_quantity}` : 'No'}`);
+    console.log(`- Quantity: ${quantity}, Buy Quantity: ${flashOffer?.buy_quantity}`);
+    console.log(`- Exactly equal? ${quantity === (parseInt(flashOffer?.buy_quantity) || 0)}`);
     console.log(`- Category discount = ${categoryDiscountPercentage}%`);
     console.log(`- Retailer discount = ${userDiscountPercentage}%`);
     console.log(`- Applied type = ${discountType}`);
-    console.log(`- Quantity = ${quantity}, Free = ${flashFreeQuantity}, Total for backend = ${totalQuantityForBackend}`);
 
     // Step 1: Calculate credit charge (percentage of edited_sale_price)
     const creditChargePerUnit = (editedSalePrice * creditPercentage) / 100;
@@ -361,9 +353,9 @@ const Cart = () => {
       credit_period: item.creditPeriod,
       credit_percentage: creditPercentage,
       discount_type: discountType,
-      flash_offer: flashOffer,
+      flash_offer: flash_offer_value,
       flash_free_quantity: flashFreeQuantity,
-      total_quantity_for_backend: totalQuantityForBackend, // Send this to backend
+      total_quantity_for_backend: totalQuantityForBackend,
       category_discount_percentage: categoryDiscountPercentage,
       retailer_discount_percentage: userDiscountPercentage,
       applicable_discount_percentage: applicableDiscountPercentage,
@@ -411,8 +403,8 @@ const Cart = () => {
       const breakdown = calculateItemBreakdown(item);
       return {
         product: item.product,
-        quantity: item.quantity, // Original quantity from cart
-        total_quantity_for_backend: breakdown.total_quantity_for_backend, // Quantity to send to backend
+        quantity: item.quantity,
+        total_quantity_for_backend: breakdown.total_quantity_for_backend,
         creditPeriod: item.creditPeriod,
         creditPercentage: item.creditPercentage,
         priceMultiplier: item.priceMultiplier,
@@ -592,26 +584,48 @@ const Cart = () => {
     }
   };
 
-  // Get discount badge for a product
-  const getDiscountBadge = (product: any) => {
+  // FIXED: Show flash badge only for exact buy_quantity
+  const getDiscountBadge = (cartItem: any) => {
+    const product = cartItem.product;
+    const quantity = cartItem.quantity || 1;
     const flashOffer = getProductFlashOffer(product);
     const categoryDiscount = getProductCategoryDiscount(product);
     
-    if (flashOffer) {
+    // Check if quantity is EXACTLY equal to buy_quantity
+    const qualifiesForFlash = flashOffer && quantity === (parseInt(flashOffer.buy_quantity) || 0);
+    
+    // PRIORITY 1: Flash offer (only if exact buy_quantity)
+    if (flashOffer && qualifiesForFlash) {
       return (
         <span className="inline-flex items-center gap-1 bg-gradient-to-r from-yellow-500 to-orange-500 text-white text-xs px-2 py-1 rounded-full">
           <Zap className="h-3 w-3" />
           FLASH: Buy {flashOffer.buy_quantity} Get {flashOffer.get_quantity} FREE
         </span>
       );
-    } else if (categoryDiscount > 0) {
+    }
+    // Show message if flash offer exists but doesn't qualify
+    else if (flashOffer && !qualifiesForFlash) {
+      const buyQuantity = parseInt(flashOffer.buy_quantity);
+      const neededQuantity = buyQuantity - quantity;
+      
+      return (
+        <span className="inline-flex items-center gap-1 bg-gradient-to-r from-gray-400 to-gray-500 text-white text-xs px-2 py-1 rounded-full">
+          <Zap className="h-3 w-3" />
+          ADD {neededQuantity} MORE FOR FLASH OFFER
+        </span>
+      );
+    }
+    // PRIORITY 2: Category discount (only if no qualifying flash offer)
+    else if (categoryDiscount > 0) {
       return (
         <span className="inline-flex items-center gap-1 bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full">
           <TagIcon className="h-3 w-3" />
           {categoryDiscount}% Category Discount
         </span>
       );
-    } else if (userDiscountPercentage > 0) {
+    }
+    // PRIORITY 3: Retailer discount (only if no flash or category)
+    else if (userDiscountPercentage > 0) {
       return (
         <span className="inline-flex items-center gap-1 bg-purple-100 text-purple-800 text-xs px-2 py-1 rounded-full">
           <User className="h-3 w-3" />
@@ -619,6 +633,7 @@ const Cart = () => {
         </span>
       );
     }
+    
     return null;
   };
 
@@ -740,17 +755,16 @@ const Cart = () => {
   // Get current order summary for display
   const { orderItems, orderTotals } = calculateOrderSummary();
 
-  // Calculate how many items have each type of discount/offer
   const itemsWithFlashOffer = cart.filter(item => 
-    hasFlashOffer(item.product)
+    hasFlashOffer(item)  
   ).length;
   
   const itemsWithCategoryDiscount = cart.filter(item => 
-    hasCategoryDiscount(item.product) && !hasFlashOffer(item.product)
+    hasCategoryDiscount(item.product) && !hasFlashOffer(item)
   ).length;
   
   const itemsWithRetailerDiscount = cart.filter(item => 
-    !hasFlashOffer(item.product) && !hasCategoryDiscount(item.product) && userDiscountPercentage > 0
+    !hasFlashOffer(item) && !hasCategoryDiscount(item.product) && userDiscountPercentage > 0
   ).length;
 
   return (
@@ -863,7 +877,10 @@ const Cart = () => {
           const breakdown = calculateItemBreakdown(item);
           const finalPayableAmount = breakdown.totals.finalPayableAmount;
           const hasFlash = breakdown.discount_type === 'flash';
-          const flashOffer = breakdown.flash_offer;
+          const flashOffer = getProductFlashOffer(item.product);
+          
+          // Check if quantity is exactly equal to buy_quantity for display
+          const isExactBuyQuantity = flashOffer && item.quantity === parseInt(flashOffer.buy_quantity);
 
           return (
             <motion.div
@@ -901,7 +918,7 @@ const Cart = () => {
                             Discounted
                           </span>
                         )}
-                        {getDiscountBadge(item.product)}
+                        {getDiscountBadge(item)}
                       </div>
                     </div>
                     
@@ -935,8 +952,8 @@ const Cart = () => {
                       </span>
                     </div>
                     
-                    {/* Flash Offer Info */}
-                    {hasFlash && flashOffer && (
+                    {/* Flash Offer Info - Only show if exactly buy_quantity */}
+                    {flashOffer && isExactBuyQuantity && (
                       <div className="mt-2 p-2 bg-gradient-to-r from-yellow-50 to-orange-50 border border-yellow-200 rounded-lg">
                         <div className="flex items-center gap-2 mb-2">
                           <Zap className="h-4 w-4 text-yellow-600 animate-pulse" />
@@ -1034,16 +1051,16 @@ const Cart = () => {
                         </div>
                         
                         {/* Flash offer quantity hint */}
-                        {hasFlash && flashOffer && (
+                        {flashOffer && (
                           <div className="text-xs text-yellow-600">
-                            {item.quantity >= parseInt(flashOffer.buy_quantity) ? (
+                            {isExactBuyQuantity ? (
                               <span className="flex items-center gap-1">
                                 <Zap className="h-3 w-3" />
-                                You qualify for {Math.floor(item.quantity / parseInt(flashOffer.buy_quantity))} free item(s)
+                                You qualify for flash offer! Get {flashOffer.get_quantity} free item(s)
                               </span>
                             ) : (
                               <span>
-                                Add {parseInt(flashOffer.buy_quantity) - item.quantity} more to get {flashOffer.get_quantity} free
+                                Add {parseInt(flashOffer.buy_quantity) - item.quantity} more to activate flash offer
                               </span>
                             )}
                           </div>

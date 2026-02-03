@@ -98,20 +98,17 @@ const Home = () => {
     }
   };
 
-  // ✅ Handle Bell Icon Click
   const handleBellClick = () => {
     if (notifications.length === 0) {
       toast.info("No new notifications found");
       return;
     }
 
-    // ✅ Get the latest notification
     const latestNotification = notifications[0];
     console.log('Latest notification clicked:', latestNotification);
     
 let alertMessage = ``;
     
-    // Split the message into lines for better formatting
     const messageLines = latestNotification.message.split('\n');
     messageLines.forEach(line => {
       if (line.trim()) {
@@ -120,14 +117,11 @@ let alertMessage = ``;
     });
     
     
-    // ✅ Show Windows Alert
     const userConfirmed = window.confirm(alertMessage);
     
     if (userConfirmed && latestNotification.order_number) {
-      // ✅ Mark this notification as read using order_number
       markNotificationAsRead(latestNotification.order_number);
       
-      // ✅ Then navigate to cart with order number
       setTimeout(() => {
         navigate(`/cart/${latestNotification.order_number}`);
       }, 100); 
@@ -158,16 +152,13 @@ let alertMessage = ``;
       console.log('Mark as read response:', data);
       
       if (data.success) {
-        // Update local state - remove notifications for this order
         setNotifications(prev => prev.filter(n => n.order_number !== orderNumber));
         
-        // Recalculate unread count
         const updatedCount = notifications.filter(n => n.order_number !== orderNumber).length;
         setUnreadCount(updatedCount);
         
         toast.success("Notification marked as read");
         
-        // Refresh notifications to ensure sync
         fetchNotifications();
       }
     } catch (error) {
@@ -176,7 +167,6 @@ let alertMessage = ``;
     }
   };
 
-  // ✅ Function to mark ALL notifications as read for this retailer
 
 
   useEffect(() => {

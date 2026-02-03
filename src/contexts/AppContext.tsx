@@ -320,6 +320,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             price: parseFloat(productData.price) || 0,
             mrp: parseFloat(productData.mrp) || 0,
             edited_sale_price: parseFloat(productData.edited_sale_price) || parseFloat(productData.price) || 0,
+                        net_price: parseFloat(productData.net_price) || 0, // Add this line
+
             unit: productData.unit || "Units",
             images: normalizedImages,
             image: normalizedImages[0],

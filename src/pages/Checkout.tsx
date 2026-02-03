@@ -93,184 +93,222 @@ const Checkout = () => {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setAddress({ ...address, [e.target.id]: e.target.value });
   };
+const handlePlaceOrder = async () => {
+  if (isPlacingOrder) return; 
+  if (!user) {
+    alert('Please login to place an order');
+    return;
+  }
 
-  const handlePlaceOrder = async () => {
-    if (isPlacingOrder) return; 
-    if (!user) {
-      alert('Please login to place an order');
-      return;
-    }
+  setIsPlacingOrder(true);
 
-    setIsPlacingOrder(true);
-
-    try {
-      // Fetch staff information from accounts table
-      let staff_incentive = 0;
-      let assigned_staff = "Unassigned";
-      let staffEmail = null;
-      let staffMobile = null;
-      
-      if (user.staffid) {
-        try {
-          const staffResponse = await fetch(`${baseurl}/accounts/${user.staffid}`);
-          if (staffResponse.ok) {
-            const staffData = await staffResponse.json();
-            
-            if (staffData && typeof staffData === 'object') {
-              staff_incentive = (staffData.incentive_percent) || 0;
-              assigned_staff = staffData.name;
-              staffEmail = staffData.email || null; 
-              staffMobile = staffData.mobile_number || null; 
-            }
-          } else {
-            console.warn('Failed to fetch staff details, using defaults');
+  try {
+    // Fetch staff information from accounts table
+    let staff_incentive = 0;
+    let assigned_staff = "Unassigned";
+    let staffEmail = null;
+    let staffMobile = null;
+    
+    if (user.staffid) {
+      try {
+        const staffResponse = await fetch(`${baseurl}/accounts/${user.staffid}`);
+        if (staffResponse.ok) {
+          const staffData = await staffResponse.json();
+          
+          if (staffData && typeof staffData === 'object') {
+            staff_incentive = (staffData.incentive_percent) || 0;
+            assigned_staff = staffData.name;
+            staffEmail = staffData.email || null; 
+            staffMobile = staffData.mobile_number || null; 
           }
-        } catch (staffErr) {
-          console.error('Error fetching staff details:', staffErr);
+        } else {
+          console.warn('Failed to fetch staff details, using defaults');
         }
+      } catch (staffErr) {
+        console.error('Error fetching staff details:', staffErr);
       }
-
-      // Generate order number for new orders
-      const orderNumber = isEditMode ? editOrderNumber : `ORD${Date.now()}`;
-      
-      // Create order data for backend
-      const orderData = {
-        order_number: orderNumber,
-        customer_id: parseInt(user.id),
-        customer_name: userDetails?.name || address.name,
-        order_total: orderTotals.totalCustomerSalePriceValue,
-        discount_amount: orderTotals.totalDiscount,
-        taxable_amount: orderTotals.totalTaxableAmount,
-        tax_amount: orderTotals.totalTax,
-        net_payable: orderTotals.finalTotal,
-        credit_period: orderTotals.totalCreditCharges,
-        estimated_delivery_date: new Date(Date.now() + 5 * 86400000).toISOString().split('T')[0],
-        order_placed_by: parseInt(user.id),
-        ordered_by: userDetails?.name,
-        staffid: parseInt(userDetails?.staffid),
-        assigned_staff: assigned_staff,
-        order_mode: orderMode,
-        approval_status: "Approved",
-        staff_incentive: staff_incentive,
-        staff_email: staffEmail,
-        staff_mobile: staffMobile,
-        retailer_email: userDetails?.email,
-        retailer_mobile: userDetails?.mobile_number,
-        flash_free_items: orderTotals.totalFlashFreeItemsValue || 0 // Add flash free items count
-      };
-
-      console.log('Order Data:', orderData);
-      console.log('Flash Free Items:', orderTotals.totalFlashFreeItemsValue);
-
-      // Prepare order items - USE total_quantity_for_backend FOR FLASH OFFERS
-      const orderItems = cartItems.map((item: any) => {
-        const breakdown = item.breakdown;
-        
-        // Determine discount type for database
-        let discount_type = 'none';
-        if (breakdown.perUnit.discount_type === 'flash') {
-          discount_type = 'flash';
-        } else if (breakdown.perUnit.discount_type === 'category') {
-          discount_type = 'category';
-        } else if (breakdown.perUnit.discount_type === 'retailer') {
-          discount_type = 'retailer';
-        }
-        
-        // Use total_quantity_for_backend for flash offers, otherwise use quantity
-        const quantityToSend = breakdown.perUnit.total_quantity_for_backend || item.quantity;
-        
-        return {
-          product_id: parseInt(item.product.id),
-          item_name: item.product.name,
-          mrp: breakdown.perUnit.mrp,
-          sale_price: breakdown.perUnit.sale_price,
-          edited_sale_price: breakdown.perUnit.edited_sale_price,
-          credit_charge: breakdown.perUnit.credit_charge,
-          credit_period: breakdown.perUnit.credit_period,
-          credit_percentage: breakdown.perUnit.credit_percentage,
-          customer_sale_price: breakdown.perUnit.customer_sale_price,
-          discount_percentage: breakdown.perUnit.applicable_discount_percentage,
-          discount_amount: breakdown.perUnit.discount_amount,
-          discount_type: discount_type,
-          category_discount_percentage: breakdown.perUnit.category_discount_percentage,
-          retailer_discount_percentage: breakdown.perUnit.retailer_discount_percentage,
-          item_total: breakdown.perUnit.item_total,
-          taxable_amount: breakdown.perUnit.taxable_amount,
-          tax_percentage: breakdown.perUnit.tax_percentage,
-          tax_amount: breakdown.perUnit.tax_amount,
-          sgst_percentage: breakdown.perUnit.sgst_percentage,
-          sgst_amount: breakdown.perUnit.sgst_amount,
-          cgst_percentage: breakdown.perUnit.cgst_percentage,
-          cgst_amount: breakdown.perUnit.cgst_amount,
-          final_amount: breakdown.perUnit.final_amount,
-          quantity: quantityToSend, // Send total quantity (actual + free)
-          flash_free_quantity: breakdown.perUnit.flash_free_quantity || 0,
-          total_amount: breakdown.perUnit.total_amount,
-          gst_type: breakdown.perUnit.isInclusiveGST ? 'inclusive' : 'exclusive',
-          price_multiplier: item.priceMultiplier || 1,
-          flash_offer: breakdown.perUnit.flash_offer ? {
-            buy_quantity: breakdown.perUnit.flash_offer.buy_quantity,
-            get_quantity: breakdown.perUnit.flash_offer.get_quantity
-          } : null
-        };
-      });
-
-      console.log('Order Items with flash quantities:', orderItems);
-
-      // Determine API endpoint based on mode
-      const apiEndpoint = isEditMode 
-        ? `${baseurl}/orders/update-order/${orderNumber}`
-        : `${baseurl}/orders/create-complete-order`;
-
-      const apiMethod = isEditMode ? 'PUT' : 'POST';
-
-      // Send to backend
-      const orderResponse = await fetch(apiEndpoint, {
-        method: apiMethod,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          order: orderData,
-          orderItems: orderItems,
-          has_flash_offers: orderTotals.totalFlashFreeItemsValue > 0
-        })
-      });
-
-      if (!orderResponse.ok) {
-        const errorData = await orderResponse.json();
-        throw new Error(errorData.message || `Failed to ${isEditMode ? 'update' : 'create'} order`);
-      }
-
-      const orderResult = await orderResponse.json();
-      console.log('Order Response:', orderResult);
-      
-      // Clear cart only for new orders (not for edits)
-      if (!isEditMode) {
-        await clearCart();
-      }
-
-      // Navigate to confirmation page
-      navigate('/order-confirmation', {
-        state: { 
-          orderId: orderResult.order_number || orderData.order_number, 
-          orderNumber: orderResult.order_number,
-          total: orderTotals.finalTotal,
-          orderTotals,
-          orderMode,
-          staffName: assigned_staff,
-          staffIncentive: staff_incentive,
-          isEditMode: isEditMode,
-          flashFreeItems: orderTotals.totalFlashFreeItemsValue
-        },
-      });
-
-    } catch (error: any) {
-      console.error('Error placing order:', error);
-      alert(`Failed to ${isEditMode ? 'update' : 'place'} order: ${error.message}`);
-      setIsPlacingOrder(false);
     }
-  };
+
+    // Generate order number for new orders
+    const orderNumber = isEditMode ? editOrderNumber : `ORD${Date.now()}`;
+    
+    // Create order data for backend
+    const orderData = {
+      order_number: orderNumber,
+      customer_id: parseInt(user.id),
+      customer_name: userDetails?.name || address.name,
+      order_total: orderTotals.totalCustomerSalePriceValue,
+      discount_amount: orderTotals.totalDiscount,
+      taxable_amount: orderTotals.totalTaxableAmount,
+      tax_amount: orderTotals.totalTax,
+      net_payable: orderTotals.finalTotal,
+      credit_period: orderTotals.totalCreditCharges,
+      estimated_delivery_date: new Date(Date.now() + 5 * 86400000).toISOString().split('T')[0],
+      order_placed_by: parseInt(user.id),
+      ordered_by: userDetails?.name,
+      staffid: parseInt(userDetails?.staffid),
+      assigned_staff: assigned_staff,
+      order_mode: orderMode,
+      approval_status: "Approved",
+      staff_incentive: staff_incentive,
+      staff_email: staffEmail,
+      staff_mobile: staffMobile,
+      retailer_email: userDetails?.email,
+      retailer_mobile: userDetails?.mobile_number,
+      flash_free_items: orderTotals.totalFlashFreeItemsValue || 0
+    };
+
+    console.log('Order Data:', orderData);
+
+    // Prepare order items - SIMPLIFIED: flash_offer as 1 or 0
+    const orderItems = cartItems.map((item: any) => {
+      const breakdown = item.breakdown;
+       const net_price = item.product.net_price || 0;
+      // Determine discount type for database
+      let discount_type = 'none';
+      if (breakdown.perUnit.discount_type === 'flash') {
+        discount_type = 'flash';
+      } else if (breakdown.perUnit.discount_type === 'category') {
+        discount_type = 'category';
+      } else if (breakdown.perUnit.discount_type === 'retailer') {
+        discount_type = 'retailer';
+      }
+      
+      // SIMPLE: flash_offer = 1 if flash offer exists, 0 if not
+      const flash_offer_value = (breakdown.perUnit.discount_type === 'flash') ? 1 : 0;
+      
+      // Get buy_quantity and get_quantity if flash offer exists
+      let buy_quantity = 0;
+      let get_quantity = 0;
+      
+      if (breakdown.perUnit.discount_type === 'flash' && breakdown.perUnit.flash_offer) {
+        if (typeof breakdown.perUnit.flash_offer === 'object') {
+          buy_quantity = breakdown.perUnit.flash_offer.buy_quantity || 0;
+          get_quantity = breakdown.perUnit.flash_offer.get_quantity || 0;
+        } else if (typeof breakdown.perUnit.flash_offer === 'string') {
+          // Parse from string if needed
+          const match = breakdown.perUnit.flash_offer.match(/Buy (\d+) Get (\d+)/);
+          if (match) {
+            buy_quantity = parseInt(match[1]) || 0;
+            get_quantity = parseInt(match[2]) || 0;
+          }
+        }
+      }
+      
+      // Calculate quantity to send (including free items for flash offers)
+      let quantityToSend = item.quantity;
+      let flash_free_quantity = 0;
+      
+      if (breakdown.perUnit.discount_type === 'flash') {
+        flash_free_quantity = breakdown.perUnit.flash_free_quantity || 0;
+        quantityToSend = breakdown.perUnit.total_quantity_for_backend || 
+                        (item.quantity + flash_free_quantity);
+      }
+
+     
+      
+      console.log(`Product ${item.product.id}:`, {
+        name: item.product.name,
+        discountType: breakdown.perUnit.discount_type,
+        cartQuantity: item.quantity,
+        freeQuantity: flash_free_quantity,
+        totalQuantity: quantityToSend,
+        flashOffer: flash_offer_value,
+        hasFlash: breakdown.perUnit.discount_type === 'flash' ? 'Yes' : 'No'
+      });
+      
+      return {
+        product_id: parseInt(item.product.id),
+        item_name: item.product.name,
+        mrp: breakdown.perUnit.mrp || 0,
+        sale_price: breakdown.perUnit.sale_price || 0,
+        edited_sale_price: breakdown.perUnit.edited_sale_price || 0,
+         net_price: net_price, // Send net_price directly
+        credit_charge: breakdown.perUnit.credit_charge || 0,
+        credit_period: breakdown.perUnit.credit_period || "0",
+        credit_percentage: breakdown.perUnit.credit_percentage || 0,
+        customer_sale_price: breakdown.perUnit.customer_sale_price || 0,
+        discount_percentage: breakdown.perUnit.applicable_discount_percentage || 0,
+        discount_amount: breakdown.perUnit.discount_amount || 0,
+        discount_type: discount_type,
+        category_discount_percentage: breakdown.perUnit.category_discount_percentage || 0,
+        retailer_discount_percentage: breakdown.perUnit.retailer_discount_percentage || 0,
+        item_total: breakdown.perUnit.item_total || 0,
+        taxable_amount: breakdown.perUnit.taxable_amount || 0,
+        tax_percentage: breakdown.perUnit.tax_percentage || 0,
+        tax_amount: breakdown.perUnit.tax_amount || 0,
+        sgst_percentage: breakdown.perUnit.sgst_percentage || 0,
+        sgst_amount: breakdown.perUnit.sgst_amount || 0,
+        cgst_percentage: breakdown.perUnit.cgst_percentage || 0,
+        cgst_amount: breakdown.perUnit.cgst_amount || 0,
+        final_amount: breakdown.perUnit.final_amount || 0,
+        quantity: quantityToSend, // Send total quantity (actual + free)
+        flash_free_quantity: flash_free_quantity,
+        flash_offer: flash_offer_value, // SIMPLE: 1 or 0
+        buy_quantity: buy_quantity, // Still send these separately
+        get_quantity: get_quantity, // Still send these separately
+        total_amount: breakdown.perUnit.total_amount || 0,
+        gst_type: breakdown.perUnit.isInclusiveGST ? 'inclusive' : 'exclusive',
+        price_multiplier: item.priceMultiplier || 1
+      };
+    });
+
+    console.log('Order Items with flash offers:', orderItems);
+
+    // Determine API endpoint based on mode
+    const apiEndpoint = isEditMode 
+      ? `${baseurl}/orders/update-order/${orderNumber}`
+      : `${baseurl}/orders/create-complete-order`;
+
+    const apiMethod = isEditMode ? 'PUT' : 'POST';
+
+    // Send to backend
+    const orderResponse = await fetch(apiEndpoint, {
+      method: apiMethod,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        order: orderData,
+        orderItems: orderItems,
+        has_flash_offers: orderTotals.totalFlashFreeItemsValue > 0
+      })
+    });
+
+    if (!orderResponse.ok) {
+      const errorData = await orderResponse.json();
+      throw new Error(errorData.message || `Failed to ${isEditMode ? 'update' : 'create'} order`);
+    }
+
+    const orderResult = await orderResponse.json();
+    console.log('Order Response:', orderResult);
+    
+    // Clear cart only for new orders (not for edits)
+    if (!isEditMode) {
+      await clearCart();
+    }
+
+    // Navigate to confirmation page
+    navigate('/order-confirmation', {
+      state: { 
+        orderId: orderResult.order_number || orderData.order_number, 
+        orderNumber: orderResult.order_number,
+        total: orderTotals.finalTotal,
+        orderTotals,
+        orderMode,
+        staffName: assigned_staff,
+        staffIncentive: staff_incentive,
+        isEditMode: isEditMode,
+        flashFreeItems: orderTotals.totalFlashFreeItemsValue
+      },
+    });
+
+  } catch (error: any) {
+    console.error('Error placing order:', error);
+    alert(`Failed to ${isEditMode ? 'update' : 'place'} order: ${error.message}`);
+    setIsPlacingOrder(false);
+  }
+};
 
   return (
     <div className="min-h-screen bg-background pb-6">
