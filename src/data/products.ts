@@ -19,12 +19,13 @@ const fetchCategories = async (): Promise<Category[]> => {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
     const data = await response.json();
-    
+    console.log('data',data)
     // Map the API response to match your Category type
     return data.map((category: any) => ({
       id: category.id.toString(),
       name: category.category_name,
       discount: category.discount,
+      product_type:category.product_type,
       discountEndDate: category.discount_end_date,
       icon: getCategoryIcon(category.category_name),
     }));
@@ -66,7 +67,7 @@ const fetchProducts = async (): Promise<Product[]> => {
         price: Number(product.price) || 0,
         mrp: Number(product.mrp) || 0,
         unit: product.unit || "Units",
-
+        product_type:product.product_type || "",
         category: product.category_id?.toString(),
         category_name: product.category || "",
 

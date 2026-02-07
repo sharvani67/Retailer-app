@@ -12,8 +12,10 @@ export interface Product {
   category_name?: string;  // readable category name from API
   supplier: string;
   stock: number;
-  gst_rate: number;        // e.g., 18
-  inclusive_gst: string;   // "Inclusive" or "Exclusive"
+ weight: number;   
+    gst_rate: number;        // e.g., 18
+  inclusive_gst: string;  
+  product_type?: string;   // "KACHA" | "PAKKA"
 }
 
 export interface Category {
@@ -31,6 +33,7 @@ export interface CartItem {
   creditPeriod: string;
   priceMultiplier: number;
   creditPercentage?: number;
+  
 }
 
 

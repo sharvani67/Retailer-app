@@ -204,13 +204,14 @@ const handlePlaceOrder = async () => {
         quantityToSend = breakdown.perUnit.total_quantity_for_backend || 
                         (item.quantity + flash_free_quantity);
       }
-
+ const weight = item.product.weight || 0; // Add this line
      
       
       console.log(`Product ${item.product.id}:`, {
         name: item.product.name,
         discountType: breakdown.perUnit.discount_type,
         cartQuantity: item.quantity,
+        
         freeQuantity: flash_free_quantity,
         totalQuantity: quantityToSend,
         flashOffer: flash_offer_value,
@@ -224,6 +225,7 @@ const handlePlaceOrder = async () => {
         sale_price: breakdown.perUnit.sale_price || 0,
         edited_sale_price: breakdown.perUnit.edited_sale_price || 0,
          net_price: net_price, // Send net_price directly
+          weight: weight, // Add weight column here
         credit_charge: breakdown.perUnit.credit_charge || 0,
         credit_period: breakdown.perUnit.credit_period || "0",
         credit_percentage: breakdown.perUnit.credit_percentage || 0,
@@ -496,11 +498,7 @@ const handlePlaceOrder = async () => {
               <span className="text-primary">₹{orderTotals.finalTotal.toLocaleString()}</span>
             </div>
 
-            {orderTotals.totalFlashFreeItemsValue > 0 && (
-              <div className="text-xs text-yellow-600 bg-yellow-50 p-2 rounded">
-                * Final amount will be calculated by backend including {orderTotals.totalFlashFreeItemsValue} free items
-              </div>
-            )}
+            
 
             {/* Order Mode Display */}
             <div className="flex justify-between items-center pt-2">

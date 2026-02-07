@@ -14,6 +14,7 @@ import { baseurl } from '@/Api/Baseurl';
 
 const Home = () => {
   const [selectedCategory, setSelectedCategory] = useState('all');
+  const [selectedProductType, setSelectedProductType] = useState<'ALL' | 'PAKKA' | 'KACHA'>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [categoriesList, setCategoriesList] = useState<Category[]>([]);
   const [productsList, setProductsList] = useState<Product[]>([]);
@@ -107,7 +108,7 @@ const Home = () => {
     const latestNotification = notifications[0];
     console.log('Latest notification clicked:', latestNotification);
     
-let alertMessage = ``;
+    let alertMessage = ``;
     
     const messageLines = latestNotification.message.split('\n');
     messageLines.forEach(line => {
@@ -167,8 +168,6 @@ let alertMessage = ``;
     }
   };
 
-
-
   useEffect(() => {
     if (user) {
       syncCartWithBackend();
@@ -176,10 +175,16 @@ let alertMessage = ``;
   }, [user]);
 
   const filteredProducts = productsList.filter(product => {
+    // Filter by product type
+    const matchesProductType = 
+      selectedProductType === 'ALL' || 
+      product.product_type === selectedProductType;
+
+    // Filter by category
     const matchesCategory =
       selectedCategory === 'all' || product.category === selectedCategory;
 
-    if (!searchQuery.trim()) return matchesCategory;
+    if (!searchQuery.trim()) return matchesProductType && matchesCategory;
 
     const query = searchQuery.toLowerCase();
     const matchesSearch =
@@ -187,7 +192,7 @@ let alertMessage = ``;
       (product.supplier && product.supplier.toLowerCase().includes(query)) ||
       (product.description && product.description.toLowerCase().includes(query));
 
-    return matchesCategory && matchesSearch;
+    return matchesProductType && matchesCategory && matchesSearch;
   });
 
   const clearSearch = () => setSearchQuery('');
@@ -234,13 +239,7 @@ let alertMessage = ``;
                       <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-semibold rounded-full h-5 w-5 flex items-center justify-center animate-pulse">
                         {unreadCount}
                       </span>
-                      
-                      {/* Optional: Show count badge */}
-                      {/* {unreadCount > 1 && (
-                        <span className="absolute -top-3 -right-3 bg-red-500 text-white text-[10px] font-bold rounded-full h-4 w-4 flex items-center justify-center">
-                          {unreadCount}
-                        </span>
-                      )} */}
+                     
                     </>
                   )}
                 </motion.button>
@@ -257,6 +256,26 @@ let alertMessage = ``;
             retailerId={retailerId} 
             retailerName={user?.name || 'Retailer'}
           />
+
+          {/* Product Type Filter (PAKKA/KACHA) */}
+          <div className="px-4 py-2">
+            <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-2">
+              {['ALL', 'PAKKA', 'KACHA'].map((type) => (
+                <motion.button
+                  key={type}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setSelectedProductType(type as 'ALL' | 'PAKKA' | 'KACHA')}
+                  className={`px-4 py-2 rounded-full whitespace-nowrap font-medium transition-colors ${
+                    selectedProductType === type
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-muted text-foreground'
+                  }`}
+                >
+                  {type === 'ALL' ? 'All Products' : type}
+                </motion.button>
+              ))}
+            </div>
+          </div>
 
           {/* Category Slider */}
           <div className="px-4 py-2">
@@ -296,7 +315,7 @@ let alertMessage = ``;
                         : 'bg-muted text-foreground'
                     }`}
                   >
-                    {category.icon} {category.name}
+                    {category.icon} {category.name} 
                   </motion.button>
                 ))
               )}
@@ -325,7 +344,7 @@ let alertMessage = ``;
           </div>
 
           {/* Product Grid */}
-          <div className="p-4">
+          <div className="p-1 h-85">
             {productsLoading ? (
               <div className="grid grid-cols-2 gap-4">
                 {[1, 2, 3, 4, 5, 6].map((item) => (
@@ -337,7 +356,7 @@ let alertMessage = ``;
                 ))}
               </div>
             ) : (
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-2">
                 {filteredProducts.map((product, index) => (
                   <motion.div
                     key={product.id}

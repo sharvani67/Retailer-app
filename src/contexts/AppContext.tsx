@@ -159,7 +159,6 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       setCartLoading(true);
       console.log('Adding order items to cart:', orderItems);
       
-      // Clear existing cart first (both local and backend)
       await clearCart();
       
       // Temporary array to hold new cart items
@@ -189,10 +188,12 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           images: productData?.images ? JSON.parse(productData.images) : [],
           image: productData?.image || '',
           category: productData?.category || '',
+          product_type: productData?.product_type || '', // Add this line
           supplier: productData?.supplier || '',
           stock: productData?.stock || 0,
           gst_rate: parseFloat(item.tax_percentage) || parseFloat(productData?.gst_rate) || 0,
-          inclusive_gst: productData?.inclusive_gst || 'Exclusive'
+          inclusive_gst: productData?.inclusive_gst || 'Exclusive',
+          weight: 0
         };
 
         // Add to backend cart
@@ -202,8 +203,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           body: JSON.stringify({
             customer_id: user.id,
             product_id: parseInt(item.product_id),
-            qty: item.quantity,
-            credit_period: item.credit_period || 0,
+  quantity: item.quantity,  
+              credit_period: item.credit_period || 0,
             credit_percentage: item.credit_percentage || 0
           })
         });
@@ -277,6 +278,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       const productsResponse = await fetch(`${baseurl}/get-sales-products`);
       if (!productsResponse.ok) {
         console.error('Failed to fetch products:', productsResponse.status);
+        
         throw new Error('Failed to fetch products');
       }
 
@@ -311,6 +313,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           ? images.map((img) => img.startsWith("http") ? img : `${baseurl}${img}`)
           : [flourImage];
 
+          
         return {
           id: item.id,
           product: {
@@ -320,12 +323,13 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             price: parseFloat(productData.price) || 0,
             mrp: parseFloat(productData.mrp) || 0,
             edited_sale_price: parseFloat(productData.edited_sale_price) || parseFloat(productData.price) || 0,
-                        net_price: parseFloat(productData.net_price) || 0, // Add this line
-
+          net_price: parseFloat(productData.net_price) || 0, // Add this line
+ weight: parseFloat(productData.weight) || 0, // Add weight column
             unit: productData.unit || "Units",
             images: normalizedImages,
             image: normalizedImages[0],
             category: productData.category || "",
+            product_type: productData.product_type || "",
             supplier: productData.supplier || "Unknown Supplier",
             stock: productData.stock || 0,
             gst_rate: parseFloat(productData.gst_rate) || 0,

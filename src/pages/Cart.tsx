@@ -269,7 +269,7 @@ const Cart = () => {
 
     let applicableDiscountPercentage = 0;
     let discountType = 'none';
-    let flash_offer_value = 0;
+    let flash_offer_value = '';
 
     if (hasFlash && flashOffer) {
       discountType = 'flash';
@@ -535,9 +535,9 @@ const Cart = () => {
       totalCategoryDiscountsValue: totalCategoryDiscounts,
       totalRetailerDiscountsValue: totalRetailerDiscounts,
       totalCustomerSalePriceValue: totalCustomerSalePrice,
-      itemCount: cart.reduce((sum, item) => sum + (parseInt(item.quantity) || 1), 0)
+      itemCount: cart.reduce((sum, item) => sum + (typeof item.quantity === 'string' ? parseInt(item.quantity) : item.quantity) || 1, 0)
     };
-
+        
     return { orderItems, orderTotals };
   };
 
@@ -591,10 +591,8 @@ const Cart = () => {
     const flashOffer = getProductFlashOffer(product);
     const categoryDiscount = getProductCategoryDiscount(product);
     
-    // Check if quantity is EXACTLY equal to buy_quantity
     const qualifiesForFlash = flashOffer && quantity === (parseInt(flashOffer.buy_quantity) || 0);
     
-    // PRIORITY 1: Flash offer (only if exact buy_quantity)
     if (flashOffer && qualifiesForFlash) {
       return (
         <span className="inline-flex items-center gap-1 bg-gradient-to-r from-yellow-500 to-orange-500 text-white text-xs px-2 py-1 rounded-full">
@@ -603,7 +601,6 @@ const Cart = () => {
         </span>
       );
     }
-    // Show message if flash offer exists but doesn't qualify
     else if (flashOffer && !qualifiesForFlash) {
       const buyQuantity = parseInt(flashOffer.buy_quantity);
       const neededQuantity = buyQuantity - quantity;
@@ -972,15 +969,8 @@ const Cart = () => {
                               <Gift className="h-3 w-3" /> +{breakdown.free_quantity} units
                             </span>
                           </div>
-                          <div className="flex justify-between">
-                            <span className="font-medium">Total for backend:</span>
-                            <span className="font-bold text-blue-600">
-                              {breakdown.total_quantity} units
-                            </span>
-                          </div>
-                          <div className="text-xs text-yellow-500 mt-1">
-                            * Backend will calculate final price for {breakdown.total_quantity} units
-                          </div>
+                      
+                       
                         </div>
                       </div>
                     )}
@@ -1013,11 +1003,7 @@ const Cart = () => {
                         )}
                       </span>
                     </div>
-                    {hasFlash && (
-                      <div className="text-xs text-yellow-600 mt-1">
-                        * Final amount will be calculated by backend for {breakdown.total_quantity} total units
-                      </div>
-                    )}
+                   
                   </div>
 
                   {/* Quantity and Credit Controls */}
@@ -1126,9 +1112,7 @@ const Cart = () => {
                   </div>
                   <span className="font-bold text-green-600">+{orderTotals.totalFlashFreeItemsValue} FREE</span>
                 </div>
-                <div className="text-xs text-yellow-600 bg-yellow-50 p-2 rounded">
-                  * Backend will calculate final price including free items
-                </div>
+               
               </>
             )}
 
@@ -1186,11 +1170,7 @@ const Cart = () => {
                 <span>Base Total</span>
                 <span className="text-primary">₹{orderTotals.finalTotal.toLocaleString()}</span>
               </div>
-              {orderTotals.totalFlashFreeItemsValue > 0 && (
-                <div className="text-xs text-yellow-600 mt-2">
-                  * Final total will be adjusted by backend for flash offers
-                </div>
-              )}
+        
             </div>
 
             {(orderTotals.totalCategoryDiscountsValue > 0 || orderTotals.totalRetailerDiscountsValue > 0) && (
