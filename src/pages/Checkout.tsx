@@ -94,7 +94,7 @@ const Checkout = () => {
     setAddress({ ...address, [e.target.id]: e.target.value });
   };
 const handlePlaceOrder = async () => {
-  if (isPlacingOrder) return; 
+  if (isPlacingOrder) return;
   if (!user) {
     alert('Please login to place an order');
     return;
@@ -118,8 +118,8 @@ const handlePlaceOrder = async () => {
           if (staffData && typeof staffData === 'object') {
             staff_incentive = (staffData.incentive_percent) || 0;
             assigned_staff = staffData.name;
-            staffEmail = staffData.email || null; 
-            staffMobile = staffData.mobile_number || null; 
+            staffEmail = staffData.email || null;
+            staffMobile = staffData.mobile_number || null;
           }
         } else {
           console.warn('Failed to fetch staff details, using defaults');
@@ -148,7 +148,7 @@ const handlePlaceOrder = async () => {
       ordered_by: userDetails?.name,
       staffid: parseInt(userDetails?.staffid),
       assigned_staff: assigned_staff,
-      order_mode: orderMode,
+      order_mode: orderMode, // Main order mode
       approval_status: "Approved",
       staff_incentive: staff_incentive,
       staff_email: staffEmail,
@@ -163,7 +163,8 @@ const handlePlaceOrder = async () => {
     // Prepare order items - SIMPLIFIED: flash_offer as 1 or 0
     const orderItems = cartItems.map((item: any) => {
       const breakdown = item.breakdown;
-       const net_price = item.product.net_price || 0;
+      const net_price = item.product.net_price || 0;
+      
       // Determine discount type for database
       let discount_type = 'none';
       if (breakdown.perUnit.discount_type === 'flash') {
@@ -204,14 +205,13 @@ const handlePlaceOrder = async () => {
         quantityToSend = breakdown.perUnit.total_quantity_for_backend || 
                         (item.quantity + flash_free_quantity);
       }
- const weight = item.product.weight || 0; // Add this line
-     
+      
+      const weight = item.product.weight || 0;
       
       console.log(`Product ${item.product.id}:`, {
         name: item.product.name,
         discountType: breakdown.perUnit.discount_type,
         cartQuantity: item.quantity,
-        
         freeQuantity: flash_free_quantity,
         totalQuantity: quantityToSend,
         flashOffer: flash_offer_value,
@@ -224,8 +224,8 @@ const handlePlaceOrder = async () => {
         mrp: breakdown.perUnit.mrp || 0,
         sale_price: breakdown.perUnit.sale_price || 0,
         edited_sale_price: breakdown.perUnit.edited_sale_price || 0,
-         net_price: net_price, // Send net_price directly
-          weight: weight, // Add weight column here
+        net_price: net_price, // Send net_price directly
+        weight: weight, // Add weight column here
         credit_charge: breakdown.perUnit.credit_charge || 0,
         credit_period: breakdown.perUnit.credit_period || "0",
         credit_percentage: breakdown.perUnit.credit_percentage || 0,
@@ -251,11 +251,13 @@ const handlePlaceOrder = async () => {
         get_quantity: get_quantity, // Still send these separately
         total_amount: breakdown.perUnit.total_amount || 0,
         gst_type: breakdown.perUnit.isInclusiveGST ? 'inclusive' : 'exclusive',
-        price_multiplier: item.priceMultiplier || 1
+        price_multiplier: item.priceMultiplier || 1,
+        // ADD ORDER_MODE TO EACH ITEM
+        order_mode: orderMode // Add this line
       };
     });
 
-    console.log('Order Items with flash offers:', orderItems);
+    console.log('Order Items with flash offers and order mode:', orderItems);
 
     // Determine API endpoint based on mode
     const apiEndpoint = isEditMode 
