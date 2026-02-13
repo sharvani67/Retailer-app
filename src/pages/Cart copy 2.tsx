@@ -220,6 +220,8 @@ const Cart = () => {
     const buyQuantity = parseInt(flashOffer.buy_quantity) || 0;
     const cartQuantity = parseInt(cartItem.quantity) || 1;
     
+    // Only return true if cart quantity is EXACTLY equal to buy_quantity
+    // For buy_quantity=2: quantity should be EXACTLY 2
     return cartQuantity === buyQuantity;
   };
 
@@ -896,14 +898,9 @@ const Cart = () => {
                   {/* Product Header */}
                   <div className="flex justify-between items-start mb-2">
                     <div className="flex-1">
-         <h3 className="font-semibold text-base flex flex-wrap items-baseline gap-1">
-      <span className="break-words">{item.product.name}</span>
-      {item.product.product_type && (
-        <span className="text-xs font-normal text-muted-foreground whitespace-nowrap">
-          ({item.product.product_type})
-        </span>
-      )}
-    </h3>
+                      <h3 className="font-semibold line-clamp-2 text-base">
+                        {item.product.name}
+                      </h3>
                       <div className="flex items-center gap-2 mt-1 flex-wrap">
                         <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded">
                           {breakdown.isInclusiveGST ? 'Incl. GST' : 'Excl. GST'}
@@ -1123,8 +1120,6 @@ const Cart = () => {
               <span className="text-muted-foreground">Subtotal</span>
               <span>₹{orderTotals.subtotal.toLocaleString()}</span>
             </div>
-
-         
 
             {orderTotals.totalCreditCharges > 0 && (
               <div className="flex justify-between">

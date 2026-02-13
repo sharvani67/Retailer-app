@@ -148,6 +148,7 @@ const handlePlaceOrder = async () => {
       ordered_by: userDetails?.name,
       staffid: parseInt(userDetails?.staffid),
       assigned_staff: assigned_staff,
+      order_mode: orderMode, // Main order mode
       approval_status: "Approved",
       staff_incentive: staff_incentive,
       staff_email: staffEmail,
@@ -164,8 +165,7 @@ const handlePlaceOrder = async () => {
       const breakdown = item.breakdown;
       const net_price = item.product.net_price || 0;
       
-        const product_type = item.product.product_type || '';
-
+      // Determine discount type for database
       let discount_type = 'none';
       if (breakdown.perUnit.discount_type === 'flash') {
         discount_type = 'flash';
@@ -252,7 +252,8 @@ const handlePlaceOrder = async () => {
         total_amount: breakdown.perUnit.total_amount || 0,
         gst_type: breakdown.perUnit.isInclusiveGST ? 'inclusive' : 'exclusive',
         price_multiplier: item.priceMultiplier || 1,
-        order_mode: product_type // Add this line
+        // ADD ORDER_MODE TO EACH ITEM
+        order_mode: orderMode // Add this line
       };
     });
 
@@ -367,7 +368,7 @@ const handlePlaceOrder = async () => {
         </motion.div>
 
         {/* Order Mode Selector */}
-        {/* <motion.div
+        <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
@@ -392,7 +393,7 @@ const handlePlaceOrder = async () => {
               </div>
             </div>
           </div>
-        </motion.div> */}
+        </motion.div>
 
         {/* Flash Offer Banner */}
         {orderTotals.totalFlashFreeItemsValue > 0 && (
@@ -455,7 +456,6 @@ const handlePlaceOrder = async () => {
               <span>₹{orderTotals.totalCustomerSalePriceValue?.toLocaleString() || orderTotals.finalTotal?.toLocaleString()}</span>
             </div>
 
-
             {/* Discount */}
             {orderTotals.totalDiscount > 0 && (
               <div className="flex justify-between text-green-600">
@@ -500,11 +500,10 @@ const handlePlaceOrder = async () => {
               <span className="text-primary">₹{orderTotals.finalTotal.toLocaleString()}</span>
             </div>
 
-
             
 
             {/* Order Mode Display */}
-            {/* <div className="flex justify-between items-center pt-2">
+            <div className="flex justify-between items-center pt-2">
               <span className="text-sm text-muted-foreground">Order Mode:</span>
               <span className={`px-3 py-1 rounded-full text-sm font-medium ${
                 orderMode === 'PAKKA' 
@@ -513,7 +512,7 @@ const handlePlaceOrder = async () => {
               }`}>
                 {orderMode} {orderMode === 'PAKKA' ? '✓' : '⏳'}
               </span>
-            </div> */}
+            </div>
 
             {/* Order Type Display */}
             {isEditMode && (

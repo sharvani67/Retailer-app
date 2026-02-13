@@ -188,7 +188,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           images: productData?.images ? JSON.parse(productData.images) : [],
           image: productData?.image || '',
           category: productData?.category || '',
-          product_type: productData?.product_type || '', // Add this line
+         product_type: productData?.product_type || '',
           supplier: productData?.supplier || '',
           stock: productData?.stock || 0,
           gst_rate: parseFloat(item.tax_percentage) || parseFloat(productData?.gst_rate) || 0,
@@ -323,13 +323,13 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             price: parseFloat(productData.price) || 0,
             mrp: parseFloat(productData.mrp) || 0,
             edited_sale_price: parseFloat(productData.edited_sale_price) || parseFloat(productData.price) || 0,
-          net_price: parseFloat(productData.net_price) || 0, // Add this line
- weight: parseFloat(productData.weight) || 0, // Add weight column
+          net_price: parseFloat(productData.net_price) || 0,
+ weight: parseFloat(productData.weight) || 0, 
             unit: productData.unit || "Units",
             images: normalizedImages,
             image: normalizedImages[0],
             category: productData.category || "",
-            product_type: productData.product_type || "",
+         product_type: productData.product_type || "", 
             supplier: productData.supplier || "Unknown Supplier",
             stock: productData.stock || 0,
             gst_rate: parseFloat(productData.gst_rate) || 0,
