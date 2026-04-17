@@ -10,7 +10,7 @@ export interface Product {
   image: string;
   category: string;        // category_id as string
   category_name?: string;  // readable category name from API
-  supplier: string;
+    supplier: string;
   stock: number;
  weight: number;   
     gst_rate: number;        // e.g., 18

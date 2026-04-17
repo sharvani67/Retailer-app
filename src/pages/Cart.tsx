@@ -1011,51 +1011,62 @@ const Cart = () => {
 
                   {/* Quantity and Credit Controls */}
                   <div className="space-y-3">
-                    {/* Quantity Controls */}
-                    <div className="flex items-center justify-between">
-                      <div className="flex flex-col gap-2">
-                        <div className="flex items-center gap-2 bg-muted rounded-full p-1">
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            onClick={() => handleQuantityUpdate(item.product.id, item.quantity - 1)}
-                            className="rounded-full h-7 w-7"
-                            disabled={item.quantity <= 1}
-                          >
-                            <Minus className="h-3 w-3" />
-                          </Button>
+                {/* Quantity Controls */}
+<div className="flex items-center justify-between">
+  <div className="flex flex-col gap-2">
+    <div className="flex items-center gap-2 bg-muted rounded-full p-1">
+      <Button
+        size="icon"
+        variant="ghost"
+        onClick={() => handleQuantityUpdate(item.product.id, (item.quantity || 1) - 1)}
+        className="rounded-full h-7 w-7"
+        disabled={(item.quantity || 1) <= 1}
+      >
+        <Minus className="h-3 w-3" />
+      </Button>
 
-                          <span className="text-sm font-semibold w-8 text-center">
-                            {item.quantity}
-                          </span>
+    {/* Manual quantity input */}
+<input
+  type="number"
+  value={item.quantity || ''}
+  onChange={(e) => {
+    const newValue = parseInt(e.target.value);
+    if (!isNaN(newValue) && newValue >= 1) {
+      handleQuantityUpdate(item.product.id, newValue);
+    }
+  }}
+  className="w-12 text-center text-sm font-semibold bg-transparent focus:outline-none focus:ring-1 focus:ring-primary rounded-md"
+  min="1"
+  step="1"
+/>
 
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            onClick={() => handleQuantityUpdate(item.product.id, item.quantity + 1)}
-                            className="rounded-full h-7 w-7"
-                          >
-                            <Plus className="h-3 w-3" />
-                          </Button>
-                        </div>
-                        
-                        {/* Flash offer quantity hint */}
-                        {flashOffer && (
-                          <div className="text-xs text-yellow-600">
-                            {isExactBuyQuantity ? (
-                              <span className="flex items-center gap-1">
-                                <Zap className="h-3 w-3" />
-                                You qualify for flash offer! Get {flashOffer.get_quantity} free item(s)
-                              </span>
-                            ) : (
-                              <span>
-                                Add {parseInt(flashOffer.buy_quantity) - item.quantity} more to activate flash offer
-                              </span>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </div>
+      <Button
+        size="icon"
+        variant="ghost"
+        onClick={() => handleQuantityUpdate(item.product.id, (item.quantity || 1) + 1)}
+        className="rounded-full h-7 w-7"
+      >
+        <Plus className="h-3 w-3" />
+      </Button>
+    </div>
+    
+    {/* Flash offer quantity hint */}
+    {flashOffer && (
+      <div className="text-xs text-yellow-600">
+        {isExactBuyQuantity ? (
+          <span className="flex items-center gap-1">
+            <Zap className="h-3 w-3" />
+            You qualify for flash offer! Get {flashOffer.get_quantity} free item(s)
+          </span>
+        ) : (
+          <span>
+            Add {parseInt(flashOffer.buy_quantity) - (item.quantity || 1)} more to activate flash offer
+          </span>
+        )}
+      </div>
+    )}
+  </div>
+</div>  
 
                     {/* Credit Period Select */}
                     <div>

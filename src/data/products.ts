@@ -73,7 +73,7 @@ const fetchProducts = async (): Promise<Product[]> => {
 
         supplier: product.supplier || "Unknown Supplier",
         stock: product.stock || 50,
-
+quantity: product.quantity || 0,
         // ✅ Use first image (full URL)
         image: images.length > 0
           ? `${baseurl}${images[0]}`
