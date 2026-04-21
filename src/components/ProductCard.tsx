@@ -16,12 +16,12 @@ const ProductCard = ({ product }: ProductCardProps) => {
   
   const { addToCart, wishlist, user } = useApp();
   const navigate = useNavigate();
-  const [quantity, setQuantity] = useState(1);
+  const [quantity, setQuantity] = useState(0);
 
   const isWishlisted = wishlist.some(item => item.product.id === product.id);
 
   const handleQuantityChange = (newQuantity: number) => {
-    if (newQuantity >= 1) {
+    if (newQuantity >= 0) {
       setQuantity(newQuantity);
     }
   };
@@ -31,6 +31,11 @@ const ProductCard = ({ product }: ProductCardProps) => {
 
     if (!user) {
       navigate('/login');
+      return;
+    }
+
+    if (quantity === 0) {
+      alert("Please select at least 1 quantity");
       return;
     }
 
@@ -46,14 +51,11 @@ const ProductCard = ({ product }: ProductCardProps) => {
           image: images[0],
           images,
         },
-        quantity // Use the selected quantity instead of 1
+        quantity
       );
       
-      // Reset quantity to 1 after adding to cart (optional)
-      setQuantity(1);
+      setQuantity(0);
       
-      // Optional: Show success toast
-      // toast.success(`Added ${quantity} ${product.name} to cart`);
     } catch (error) {
       console.error('Error adding to cart:', error);
     }
@@ -97,65 +99,67 @@ const ProductCard = ({ product }: ProductCardProps) => {
           <p className="text-xs text-muted-foreground mt-0.5">Stock: {product.quantity}</p>
         </div>
 
-{/* Quantity Selector */}
-<div className="w-full overflow-x-aut0">
-  <div className="flex items-center gap-2.5 min-w-max">
+        {/* Quantity Selector */}
+        <div className="w-full overflow-x-auto">
+          <div className="flex items-center gap-2 min-w-max">
 
-    <div className="flex items-center gap-0 bg-muted rounded-full p-1 shrink-0">
-      <Button
-        size="icon"
-        variant="ghost"
-        onClick={(e) => {
-          e.stopPropagation();
-          handleQuantityChange(quantity - 1);
-        }}
-        className="rounded-full h-5 w-5"
-        disabled={quantity <= 1}
-      >
-        <Minus className="h-3 w-3" />
-      </Button>
+            <div className="flex items-center gap-0 bg-muted rounded-full p-1 shrink-0">
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleQuantityChange(quantity - 1);
+                }}
+                className="rounded-full h-5 w-5"
+                disabled={quantity <= 0}
+              >
+                <Minus className="h-3 w-3" />
+              </Button>
 
-      <input
-        type="number"
-        value={quantity}
-        onChange={(e) => {
-          const newValue = parseInt(e.target.value);
-          if (!isNaN(newValue) && newValue >= 1) {
-            setQuantity(newValue);
-          } else if (e.target.value === '') {
-            setQuantity(1);
-          }
-        }}
-        onClick={(e) => e.stopPropagation()}
-        className="w-10 text-center text-sm font-semibold bg-transparent focus:outline-none"
-        min="1"
-        step="1"
-      />
+              <input
+                type="text"
+                value={quantity === 0 ? '' : quantity}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (value === '') {
+                    setQuantity(0);
+                  } else {
+                    const newValue = parseInt(value);
+                    if (!isNaN(newValue) && newValue >= 0) {
+                      setQuantity(newValue);
+                    }
+                  }
+                }}
+                onClick={(e) => e.stopPropagation()}
+                className="w-8 text-center text-sm font-semibold bg-transparent focus:outline-none"
+                placeholder="0"
+              />
 
-      <Button
-        size="icon"
-        variant="ghost"
-        onClick={(e) => {
-          e.stopPropagation();
-          handleQuantityChange(quantity + 1);
-        }}
-        className="rounded-full h-5 w-5"
-      >
-        <Plus className="h-5 w-3" />
-      </Button>
-    </div>
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleQuantityChange(quantity + 1);
+                }}
+                className="rounded-full h-5 w-5"
+              >
+                <Plus className="h-3 w-3" />
+              </Button>
+            </div>
 
-    <Button
-      onClick={handleAddToCart}
-      className="min-w-[50px] whitespace-nowrap"
-      variant="default"
-    >
-      <ShoppingCart className="h-4 w-4 mr-1" />
-      Add 
-    </Button>
+            <Button
+              onClick={handleAddToCart}
+              className="min-w-[50px] whitespace-nowrap"
+              variant="default"
+            >
+              <ShoppingCart className="h-4 w-4 mr-1" />
+              Add 
+            </Button>
 
-  </div>
-</div>
+          </div>
+        </div>
       </div>
     </motion.div>
   );

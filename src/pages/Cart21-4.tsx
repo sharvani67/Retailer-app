@@ -40,7 +40,7 @@ const Cart = () => {
   const [flashSales, setFlashSales] = useState<any[]>([]);
   const [loadingFlashSales, setLoadingFlashSales] = useState(true);
   const [productFlashOffers, setProductFlashOffers] = useState<Record<string, any>>({});
-const [localQuantities, setLocalQuantities] = useState<Record<string, string>>({});
+
   // Check if this is edit mode
   useEffect(() => {
     if (orderNumber) {
@@ -89,13 +89,6 @@ const [localQuantities, setLocalQuantities] = useState<Record<string, string>>({
     loadFlashSales();
   }, []);
 
-    useEffect(() => {
-    const newLocal: Record<string, string> = {};
-    cart.forEach(item => {
-      newLocal[item.product.id] = String(item.quantity || 1);
-    });
-    setLocalQuantities(newLocal);
-  }, [cart]);
   // Fetch category discounts (priority 2)
   useEffect(() => {
     const loadCategoryDiscounts = async () => {
@@ -259,7 +252,7 @@ const [localQuantities, setLocalQuantities] = useState<Record<string, string>>({
     const editedSalePrice = parseFloat(item.product.edited_sale_price) || salePrice;
     const gstRate = parseFloat(item.product.gst_rate) || 0;
     const isInclusiveGST = item.product.inclusive_gst === "Inclusive";
-   const quantity = parseInt(localQuantities[item.product.id]) || item.quantity || 1;
+    const quantity = parseInt(item.quantity) || 1;
     const creditPercentage = parseFloat(item.creditPercentage) || 0;
 
     const flashOffer = getProductFlashOffer(item.product);
@@ -540,14 +533,7 @@ const [localQuantities, setLocalQuantities] = useState<Record<string, string>>({
       totalCategoryDiscountsValue: totalCategoryDiscounts,
       totalRetailerDiscountsValue: totalRetailerDiscounts,
       totalCustomerSalePriceValue: totalCustomerSalePrice,
-      itemCount: cart.reduce((sum, item) => {
-  const qty =
-    parseInt(localQuantities[item.product.id]) ||
-    item.quantity ||
-    1;
-
-  return sum + qty;
-}, 0)
+      itemCount: cart.reduce((sum, item) => sum + (typeof item.quantity === 'string' ? parseInt(item.quantity) : item.quantity) || 1, 0)
     };
         
     return { orderItems, orderTotals };
@@ -574,31 +560,12 @@ const [localQuantities, setLocalQuantities] = useState<Record<string, string>>({
       console.error('Error updating credit period:', error);
     }
   };
-  // Handle quantity update — used by + / - buttons
+
+  // Handle quantity update
   const handleQuantityUpdate = async (productId: string, newQuantity: number) => {
-    if (newQuantity < 1) newQuantity = 1;
-    setLocalQuantities(prev => ({ ...prev, [productId]: String(newQuantity) }));
     try {
+      if (newQuantity < 1) newQuantity = 1;
       await updateCartQuantity(productId, newQuantity);
-      await syncCartWithBackend();
-    } catch (error) {
-      console.error('Error updating quantity:', error);
-    }
-  };
-
-  // Handle manual text input change (immediate local update, commit on blur/enter)
-  const handleLocalQuantityChange = (productId: string, value: string) => {
-    setLocalQuantities(prev => ({ ...prev, [productId]: value }));
-  };
-
-  // Commit typed quantity to cart
-  const commitQuantity = async (productId: string) => {
-    const raw = localQuantities[productId];
-    const parsed = parseInt(raw);
-    const final = isNaN(parsed) || parsed < 1 ? 1 : parsed;
-    setLocalQuantities(prev => ({ ...prev, [productId]: String(final) }));
-    try {
-      await updateCartQuantity(productId, final);
       await syncCartWithBackend();
     } catch (error) {
       console.error('Error updating quantity:', error);
@@ -1042,60 +1009,64 @@ const [localQuantities, setLocalQuantities] = useState<Record<string, string>>({
                    
                   </div>
 
+                  {/* Quantity and Credit Controls */}
                   <div className="space-y-3">
-<div className="flex flex-col gap-2">
-  <div className="flex items-center gap-0 bg-muted rounded-full p-1 w-fit">
-    <Button
-      size="icon"
-      variant="ghost"
-      onClick={() => handleQuantityUpdate(item.product.id, (item.quantity || 1) - 1)}
-      className="rounded-full h-7 w-7"
-      disabled={(item.quantity || 1) <= 1}
-    >
-      <Minus className="h-3 w-3" />
-    </Button>
+                {/* Quantity Controls */}
+<div className="flex items-center justify-between">
+  <div className="flex flex-col gap-2">
+    <div className="flex items-center gap-2 bg-muted rounded-full p-1">
+      <Button
+        size="icon"
+        variant="ghost"
+        onClick={() => handleQuantityUpdate(item.product.id, (item.quantity || 1) - 1)}
+        className="rounded-full h-7 w-7"
+        disabled={(item.quantity || 1) <= 1}
+      >
+        <Minus className="h-3 w-3" />
+      </Button>
 
-    <input
-      type="number"
-      value={localQuantities[item.product.id] ?? String(item.quantity || 1)}
-      onChange={(e) => handleLocalQuantityChange(item.product.id, e.target.value)}
-      onBlur={() => commitQuantity(item.product.id)}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter') {
-          e.currentTarget.blur();
-        }
-      }}
-      className="w-12 text-center text-sm font-semibold bg-transparent focus:outline-none focus:ring-1 focus:ring-primary rounded-md [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-      min="1"
-      step="1"
-    />
+    {/* Manual quantity input */}
+<input
+  type="number"
+  value={item.quantity || ''}
+  onChange={(e) => {
+    const newValue = parseInt(e.target.value);
+    if (!isNaN(newValue) && newValue >= 1) {
+      handleQuantityUpdate(item.product.id, newValue);
+    }
+  }}
+  className="w-12 text-center text-sm font-semibold bg-transparent focus:outline-none focus:ring-1 focus:ring-primary rounded-md"
+  min="1"
+  step="1"
+/>
 
-    <Button
-      size="icon"
-      variant="ghost"
-      onClick={() => handleQuantityUpdate(item.product.id, (item.quantity || 1) + 1)}
-      className="rounded-full h-7 w-7"
-    >
-      <Plus className="h-3 w-3" />
-    </Button>
-  </div>
-
-  {/* Flash offer quantity hint */}
-  {flashOffer && (
-    <div className="text-xs text-yellow-600">
-      {isExactBuyQuantity ? (
-        <span className="flex items-center gap-1">
-          <Zap className="h-3 w-3" />
-          You qualify for flash offer! Get {flashOffer.get_quantity} free item(s)
-        </span>
-      ) : (
-        <span>
-          Add {parseInt(flashOffer.buy_quantity) - (item.quantity || 1)} more to activate flash offer
-        </span>
-      )}
+      <Button
+        size="icon"
+        variant="ghost"
+        onClick={() => handleQuantityUpdate(item.product.id, (item.quantity || 1) + 1)}
+        className="rounded-full h-7 w-7"
+      >
+        <Plus className="h-3 w-3" />
+      </Button>
     </div>
-  )}
-</div> 
+    
+    {/* Flash offer quantity hint */}
+    {flashOffer && (
+      <div className="text-xs text-yellow-600">
+        {isExactBuyQuantity ? (
+          <span className="flex items-center gap-1">
+            <Zap className="h-3 w-3" />
+            You qualify for flash offer! Get {flashOffer.get_quantity} free item(s)
+          </span>
+        ) : (
+          <span>
+            Add {parseInt(flashOffer.buy_quantity) - (item.quantity || 1)} more to activate flash offer
+          </span>
+        )}
+      </div>
+    )}
+  </div>
+</div>  
 
                     {/* Credit Period Select */}
                     <div>
@@ -1270,4 +1241,3 @@ const [localQuantities, setLocalQuantities] = useState<Record<string, string>>({
 };
 
 export default Cart;
-  

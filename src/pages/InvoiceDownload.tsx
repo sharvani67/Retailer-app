@@ -45,29 +45,33 @@ const InvoiceDownload = () => {
     fetchInvoices();
   }, [orderNumber, navigate]);
 
-const fetchInvoices = async () => {
-  try {
-    setLoading(true);
-    setError(null);
+  const fetchInvoices = async () => {
+    try {
+      setLoading(true);
+      setError(null);
 
-    const url = `${baseurl}/transactions/download-pdf?order_number=${orderNumber}`;
-    console.log('Fetching from URL:', url); // Add this line
-    
-    const response = await fetch(url);
+      const response = await fetch(
+        `${baseurl}/transactions/download-pdf?order_number=${orderNumber}`
+      );
 
-    if (!response.ok) {
-      console.error('Response status:', response.status); // Add this line
-      throw new Error(`Failed to fetch invoices: ${response.status}`);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch invoices: ${response.status}`);
+      }
+
+      const data: ApiResponse = await response.json();
+
+      if (!data.success) {
+        throw new Error(data.message || 'Failed to load invoices');
+      }
+
+      setInvoices(data.pdfs || []);
+    } catch (err) {
+      console.error('Error fetching invoices:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load invoices');
+    } finally {
+      setLoading(false);
     }
-
-    // ... rest of the code
-  } catch (err) {
-    console.error('Error fetching invoices:', err);
-    setError(err instanceof Error ? err.message : 'Failed to load invoices');
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   const downloadInvoice = (invoice: Invoice, index: number) => {
     try {
