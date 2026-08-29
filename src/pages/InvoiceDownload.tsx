@@ -45,33 +45,50 @@ const InvoiceDownload = () => {
     fetchInvoices();
   }, [orderNumber, navigate]);
 
-  const fetchInvoices = async () => {
-    try {
-      setLoading(true);
-      setError(null);
+const fetchInvoices = async () => {
+  try {
+    setLoading(true);
+    setError(null);
 
+    // ✅ Try the endpoint but handle 404 gracefully
+    try {
       const response = await fetch(
         `${baseurl}/transactions/download-pdf?order_number=${orderNumber}`
       );
 
-      if (!response.ok) {
+      if (response.ok) {
+        const data: ApiResponse = await response.json();
+        if (data.success && data.pdfs && data.pdfs.length > 0) {
+          setInvoices(data.pdfs);
+          return;
+        } else {
+          // No invoices found
+          setInvoices([]);
+          setError('No invoices found for this order. Please generate an invoice first.');
+          return;
+        }
+      } else if (response.status === 404) {
+        // ✅ 404 means no invoices or endpoint doesn't exist - handle gracefully
+        console.log(`ℹ️ No invoices found for order ${orderNumber}`);
+        setInvoices([]);
+        setError('No invoices found for this order. Please generate an invoice first.');
+        return;
+      } else {
         throw new Error(`Failed to fetch invoices: ${response.status}`);
       }
-
-      const data: ApiResponse = await response.json();
-
-      if (!data.success) {
-        throw new Error(data.message || 'Failed to load invoices');
-      }
-
-      setInvoices(data.pdfs || []);
-    } catch (err) {
-      console.error('Error fetching invoices:', err);
-      setError(err instanceof Error ? err.message : 'Failed to load invoices');
-    } finally {
-      setLoading(false);
+    } catch (fetchErr) {
+      // Network error or other issue
+      console.error('Fetch error:', fetchErr);
+      throw fetchErr;
     }
-  };
+
+  } catch (err) {
+    console.error('Error fetching invoices:', err);
+    setError(err instanceof Error ? err.message : 'Failed to load invoices');
+  } finally {
+    setLoading(false);
+  }
+};
 
   const downloadInvoice = (invoice: Invoice, index: number) => {
     try {
